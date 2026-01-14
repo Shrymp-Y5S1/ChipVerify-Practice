@@ -1,0 +1,16 @@
+# VCS & Verdi
+csrc/
+simv
+simv.daidir/
+*.fsdb
+*.vpd
+*.vcd
+ucli.key
+vc_hdrs.h
+DVEfiles/
+verdiLog/
+*.log
+novas.*
+
+# EditorConfig (optional)
+# .editorconfig
