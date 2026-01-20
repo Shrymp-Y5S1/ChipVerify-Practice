@@ -2,8 +2,8 @@ module reg_map #(
     parameter ADDR_WIDTH = 4,
     parameter DATA_WIDTH = 16
 )(
-    input clk,
-    input rst_n,
+    input PCLK,
+    input PRESETn,
     // input from APB
     input [ADDR_WIDTH-1:0] PADDR,
     input PSELx,
@@ -17,6 +17,7 @@ module reg_map #(
     input empty_rx,
     // input from uart_tx
     input tx_busy,
+    input data_ack,
     // input from uart_rx
     input rx_error,
     input rx_ready,
@@ -25,9 +26,7 @@ module reg_map #(
     output reg wr_en,
     output reg [DATA_WIDTH-1:0] tx_din_fifo,
     // output to uart_rx_fifo
-    output reg rd_en,
-    // output to uart_tx
-    output reg tx_start,
+    output reg rd_en_rx_fifo,
     // output to baud_generate
     output reg [1:0] clk_freq_index,
     output reg [1:0] baud_rate_index,
@@ -87,6 +86,21 @@ module reg_map #(
         end
     end
 
+    // PRDATA signal generation
+    always @(*)begin
+        if((state == ACCESS || state == SETUP)&& !PWRITE)begin
+            case(PADDR)
+                REG_UART_DATA: PRDATA = uart_data_reg;
+                REG_UART_CTRL: PRDATA = uart_ctrl_reg;
+                REG_UART_STAT: PRDATA = uart_stat_reg;
+                REG_UART_INT:  PRDATA = uart_int_reg;
+                default: PRDATA = 0;
+            endcase
+        end else begin
+            PRDATA = 0;
+        end
+    end
+
     // PREADY signal generation
     always @(posedge PCLK or negedge PRESETn)begin
         if(!PRESETn)
@@ -119,25 +133,21 @@ module reg_map #(
     always @(posedge PCLK or negedge PRESETn)begin
         if(!PRESETn)begin
             uart_data_reg <= 0;
-        end else if(state == ACCESS)begin
-            if(PWRITE && (PADDR == REG_UART_DATA))begin   // write
-                uart_data_reg <= PWDATA;
-                tx_din_fifo <= PWDATA;
-                if(!full_tx)begin
-                    wr_en <= 1;
-                    tx_start <= 1;
-                end else begin
-                    PREADY <= 0;
-                    wr_en <= 0;
-                    tx_start <= 0;
-                end
-            end else if(!PWRITE && (PADDR == REG_UART_DATA))begin   // read
-                uart_data_reg <= rx_dout_fifo;
-                if(!empty_rx)begin
-                    rd_en <= 1;
-                end else begin
-                    PREADY <= 0;
-                    rd_en <= 0;
+        end else begin
+            wr_en <= 0;
+            rd_en_rx_fifo <= 0;
+            if(state == ACCESS)begin
+                if(PWRITE && (PADDR == REG_UART_DATA))begin   // write
+                    uart_data_reg <= PWDATA;
+                    tx_din_fifo <= PWDATA;
+                    if(!full_tx)begin
+                        wr_en <= 1;
+                    end
+                end else if(!PWRITE && (PADDR == REG_UART_DATA))begin   // read
+                    uart_data_reg <= rx_dout_fifo;
+                    if(!empty_rx)begin
+                        rd_en_rx_fifo <= 1;
+                    end
                 end
             end
         end
@@ -160,10 +170,6 @@ module reg_map #(
     always @(posedge PCLK or negedge PRESETn)begin
         if(!PRESETn)begin
             uart_stat_reg <= 0;
-        end else if(state == ACCESS)begin
-            if (!PWRITE && (PADDR == REG_UART_STAT))begin
-                PRDATA <= uart_stat_reg;
-            end
         end else begin
             uart_stat_reg[0] <= empty_rx;
             uart_stat_reg[1] <= rx_ready;
@@ -174,15 +180,19 @@ module reg_map #(
         end
     end
 
-    // // UART INTERRUPT REGISTER
-    // always @(posedge PCLK or negedge PRESETn)begin
-    //     if(!PRESETn)begin
-    //         uart_int_reg <= 0;
-    //     end else begin
-    //         uart_int_reg[0] <= rx_ready & uart_ctrl_reg[1];   // rx_done
-    //         uart_int_reg[1] <= !full_tx & uart_ctrl_reg[1];    // tx_done
-    //     end
-    // end
+    // UART INTERRUPT REGISTER (Write 1 to Clear)
+    always @(posedge PCLK or negedge PRESETn)begin
+        if(!PRESETn)begin
+            uart_int_reg <= 0;
+        end else begin
+            if(rx_ready) uart_int_reg[0] <= 1;
+            if(data_ack) uart_int_reg[1] <= 1;
+            if((state == ACCESS) && PWRITE && (PADDR == REG_UART_INT))begin
+                if(PWDATA[0])uart_int_reg[0] <= 0;   // rx_done
+                if(PWDATA[1])uart_int_reg[1] <= 0;   // tx_done
+            end
+        end
+    end
 
     // address decoding
     // always @(*)begin

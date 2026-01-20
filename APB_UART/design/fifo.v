@@ -7,7 +7,7 @@ module fifo #(
     input wr_en,
     input rd_en,
     input [DATA_WIDTH-1:0] din,
-    output reg [DATA_WIDTH-1:0] dout,
+    output [DATA_WIDTH-1:0] dout,
     output full,
     output empty
 );
@@ -38,11 +38,12 @@ module fifo #(
             dout <= 0;
         end else begin
             if(rd_en && !empty)begin
-                dout <= mem[rd_prt];
                 rd_prt <= rd_prt + 1;
             end
         end
     end
+
+    assign dout = mem[rd_prt];  // FWFT
 
     //fifo cnt
     always @(posedge clk or negedge rst_n)begin

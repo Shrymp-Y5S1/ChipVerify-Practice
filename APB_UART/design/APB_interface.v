@@ -17,7 +17,7 @@ module APB_interface #(
     input rx,
     // to APB bus
     output PREADY,
-    output reg [DATA_WIDTH-1:0] PRDATA,
+    output [DATA_WIDTH-1:0] PRDATA,
     output PSLVERR,   // 1: error
     // to external device
     output tx
@@ -34,6 +34,7 @@ module APB_interface #(
     // output declaration of module uart_tx
     wire tx;
     wire tx_busy;
+    wire data_ack;
     // output declaration of module fifo_rx
     wire [DATA_WIDTH-1:0] rx_din_fifo;
     wire [DATA_WIDTH-1:0] rx_dout_fifo;
@@ -45,22 +46,18 @@ module APB_interface #(
     wire rx_error;
     // output declaration of module reg_map
     wire wr_en;
-    wire rd_en;
-    wire tx_start;
+    wire rd_en_rx_fifo;
     wire [1:0] clk_freq_index;
     wire [1:0] baud_rate_index;
-    wire [DATA_WIDTH-1:0] PRDATA;
-    wire PSLVERR;
     // clock frequency and baud rate
-    reg [31:0] clock_frequency;
-    reg [31:0] baud_rate;
+    reg [31:0] divisor;
 
     reg_map #(
         .ADDR_WIDTH 	(4   ),
         .DATA_WIDTH 	(16  ))
     u_reg_map(
-        .clk             	(PCLK             ),
-        .rst_n           	(PRESETn          ),
+        .PCLK             	(PCLK             ),
+        .PRESETn           	(PRESETn          ),
         .PADDR           	(PADDR            ),
         .PSELx           	(PSELx            ),
         .PENABLE         	(PENABLE          ),
@@ -70,13 +67,13 @@ module APB_interface #(
         .rx_dout_fifo    	(rx_dout_fifo     ),
         .empty_rx        	(empty_rx         ),
         .tx_busy         	(tx_busy          ),
+        .tx_ready 	        (data_ack                ),
         .rx_error        	(rx_error         ),
         .rx_ready        	(rx_ready         ),
         .rx_busy         	(rx_busy          ),
         .wr_en           	(wr_en            ),
         .tx_din_fifo     	(tx_din_fifo      ),
-        .rd_en           	(rd_en            ),
-        .tx_start        	(tx_start         ),
+        .rd_en_rx_fifo      (rd_en_rx_fifo    ),
         .clk_freq_index  	(clk_freq_index   ),
         .baud_rate_index 	(baud_rate_index  ),
         .PREADY          	(PREADY           ),
@@ -84,42 +81,27 @@ module APB_interface #(
         .PSLVERR         	(PSLVERR          )
     );
 
-    // Clock frequency
-    always @(posedge PCLK or negedge PRESETn)begin
-        if(!PRESETn)
-            clock_frequency <= 50_000_000;
-        else begin
-            case(clk_freq_index)
-                2'b00:clock_frequency <= 50_000_000; // 50 MHz
-                2'b01:clock_frequency <= 25_000_000; // 25 MHz
-                2'b10:clock_frequency <= 12_500_000; // 12.5 MHz
-                default:clock_frequency <= 50_000_000;
-            endcase
-        end
+    always @(*)begin
+        case(baud_rate_index)   // 0:115200, 1:57600, 2:38400, 3:19200, 4:9600
+            3'b000:divisor = 434;
+            3'b001:divisor = 868;
+            3'b010:divisor = 1302;
+            3'b011:divisor = 2604;
+            3'b100:divisor = 5208;
+            default:divisor = 434;
+        endcase
+        case(clk_freq_index)    // 0:50MHz, 1:25MHz, 2:12.5MHz
+            2'b00:divisor = divisor;
+            2'b01:divisor = divisor >>1;
+            2'b10:divisor = divisor >>2;
+            default:divisor = divisor;
+        endcase
     end
 
-    // Baud rate
-    always @(posedge PCLK or negedge PRESETn)begin
-        if(!PRESETn)
-            baud_rate <= 115_200;
-        else begin
-            case(baud_rate_index)
-                3'b000:baud_rate <= 115_200;
-                3'b001:baud_rate <= 57_600;
-                3'b010:baud_rate <= 38_400;
-                3'b011:baud_rate <= 19_200;
-                3'b100:baud_rate <= 9_600;
-                default:baud_rate <= 115_200;
-            endcase
-	    end
-    end
-
-    baud_generate #(
-        .CLL_FREQ_INDEX (clock_frequency),
-        .BAUD_RATE_INDEX (baud_rate)
-    ) u_baud_generate(
+    baud_generate  u_baud_generate(
         .clk         	(PCLK         ),
         .rst_n       	(PRESETn      ),
+        .divisor        (divisor      ),
         .baud_en     	(baud_en      ),
         .baud_en_16x 	(baud_en_16x  )
     );
@@ -130,9 +112,9 @@ module APB_interface #(
     tx_fifo(
         .clk   	(PCLK           ),
         .rst_n 	(PRESETn        ),
-        .wr_en 	(wr_en          ),  // from APB interface
-        .rd_en 	(!tx_busy       ),
-        .din   	(tx_din_fifo    ),  // from APB interface
+        .wr_en 	(wr_en          ),
+        .rd_en 	(data_ack       ),
+        .din   	(tx_din_fifo    ),
         .dout  	(tx_dout_fifo   ),
         .full  	(full_tx        ),
         .empty 	(empty_tx       )
@@ -145,9 +127,10 @@ module APB_interface #(
         .rst_n    	(PRESETn        ),
         .baud_en  	(baud_en        ),
         .tx_data  	(tx_dout_fifo   ),
-        .tx_start 	(tx_start       ),   // from APB interface
+        .tx_start 	(!empty_tx && !tx_busy       ),
         .tx       	(tx             ),
-        .tx_busy  	(tx_busy        )
+        .tx_busy  	(tx_busy        ),
+        .data_ack 	(       data_ack       )
     );
 
     fifo #(
@@ -156,10 +139,10 @@ module APB_interface #(
     rx_fifo(
         .clk   	(PCLK           ),
         .rst_n 	(PRESETn        ),
-        .wr_en 	(!rx_busy       ),
-        .rd_en 	(rd_en          ),  // to APB interface
+        .wr_en 	(rx_ready       ),
+        .rd_en 	(rd_en_rx_fifo  ),
         .din   	(rx_din_fifo    ),
-        .dout  	(rx_dout_fifo   ),  // to APB interface
+        .dout  	(rx_dout_fifo   ),
         .full  	(full_rx        ),
         .empty 	(empty_rx       )
     );

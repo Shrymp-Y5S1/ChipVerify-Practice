@@ -7,7 +7,8 @@ module uart_tx #(
     input [DATA_WIDTH-1:0] tx_data,
     input tx_start,
     output reg tx,
-    output reg tx_busy
+    output reg tx_busy,
+    output reg data_ack
 );
 
     localparam CNT_WIDTH = $clog2(DATA_WIDTH) + 1;
@@ -28,6 +29,7 @@ module uart_tx #(
             tx_busy <= 0;
             tx_data_reg <= 0;
             bit_cnt <= 0;
+            data_ack <= 0;
         end else begin
             case(state)
                 IDLE:begin
@@ -36,6 +38,7 @@ module uart_tx #(
                         tx_data_reg <= tx_data;
                         state <= START_BIT;
                         tx_busy <= 1;
+                        data_ack <= 1;
                     end else begin
                         tx <= 1;
                         state <= IDLE;
@@ -43,6 +46,7 @@ module uart_tx #(
                     end
                 end
                 START_BIT:begin
+                    data_ack <= 0;
                     if(baud_en)begin
                         state <= DATA_BITS;
                         bit_cnt <= 0;

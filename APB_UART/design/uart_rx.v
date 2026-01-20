@@ -22,6 +22,17 @@ module uart_rx #(
     reg [CNT_WIDTH-1:0] bit_cnt;
     reg [3:0] oversample_cnt;   // 16x oversampling
     reg [DATA_WIDTH-1:0] rx_data_reg;
+    reg rx_sync1, rx_sync2;
+
+    always @(posedge clk or negedge rst_n)begin
+        if(!rst_n)begin
+            rx_sync1 <= 0;
+            rx_sync2 <= 0;
+        end else begin
+            rx_sync1 <= rx;
+            rx_sync2 <= rx_sync1;
+        end
+    end
 
     always @(posedge clk or negedge rst_n)begin
         if(!rst_n)begin
@@ -37,7 +48,7 @@ module uart_rx #(
                 IDLE: begin
                     rx_ready <= 0;
                     rx_error <= 0;
-                    if(!rx)begin
+                    if(!rx_sync2)begin
                         state <= START_BIT;
                         rx_busy <= 1;
                         oversample_cnt <= 0;
@@ -47,7 +58,7 @@ module uart_rx #(
                     if(baud_en_16x)begin
                         oversample_cnt <= oversample_cnt + 1;
                         if(oversample_cnt == 7)begin
-                            if(!rx)begin
+                            if(!rx_sync2)begin
                                 oversample_cnt <= 0;
                                 bit_cnt <= 0;
                                 state <= DATA_BITS;
@@ -63,7 +74,7 @@ module uart_rx #(
                     if(baud_en_16x)begin
                         oversample_cnt <= oversample_cnt + 1;
                         if(oversample_cnt == 7)begin
-                            rx_data_reg[bit_cnt] <= rx;
+                            rx_data_reg[bit_cnt] <= rx_sync2;
                             oversample_cnt <= 0;
                             if(bit_cnt == DATA_WIDTH - 1)begin
                                 state <= PARITY_BIT;
@@ -77,7 +88,7 @@ module uart_rx #(
                     if(baud_en_16x)begin
                         oversample_cnt <= oversample_cnt + 1;
                         if(oversample_cnt == 7)begin
-                            if(rx != ^rx_data_reg)begin
+                            if(rx_sync2 != ^rx_data_reg)begin
                                 rx_error <= 1;
                             end
                             oversample_cnt <= 0;
@@ -89,7 +100,7 @@ module uart_rx #(
                     if(baud_en_16x)begin
                         oversample_cnt <= oversample_cnt + 1;
                         if(oversample_cnt == 7)begin
-                            if(rx)begin
+                            if(rx_sync2)begin
                                 rx_data <= rx_data_reg;
                                 rx_ready <= 1;
                             end else begin
