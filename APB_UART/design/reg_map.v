@@ -87,11 +87,39 @@ module reg_map #(
         end
     end
 
+    // PREADY signal generation
+    always @(posedge PCLK or negedge PRESETn)begin
+        if(!PRESETn)
+            PREADY <= 1;
+        else begin
+            if(state == ACCESS)begin
+                if(PWRITE && (PADDR == REG_UART_DATA) && full)begin
+                    PREADY <= 0;
+                end else if(!PWRITE && (PADDR == REG_UART_DATA) && empty_rx)begin
+                    PREADY <= 0;
+                end else begin
+                    PREADY <= 1;
+                end
+            end else begin
+                PREADY <= 1;
+            end
+        end
+    end
+
+    // PSLVERR signal generation
+    always @(posedge PCLK or negedge PRESETn)begin
+        if(!PRESETn)
+            PSLVERR <= 0;
+        else begin
+            PSLVERR <= 0;
+        end
+    end
+
     // UART DATA REGISTER
     always @(posedge PCLK or negedge PRESETn)begin
         if(!PRESETn)begin
             uart_data_reg <= 0;
-        end else if(ACCESS)begin
+        end else if(state == ACCESS)begin
             if(PWRITE && (PADDR == REG_UART_DATA))begin   // write
                 uart_data_reg <= PWDATA;
                 tx_din_fifo <= PWDATA;
@@ -119,7 +147,7 @@ module reg_map #(
     always @(posedge PCLK or negedge PRESETn)begin
         if(!PRESETn)begin
             uart_ctrl_reg <= 0;
-        end else if(ACCESS)begin
+        end else if(state == ACCESS)begin
             if(PWRITE && (PADDR == REG_UART_CTRL))begin
                 uart_ctrl_reg <= PWDATA;
                 clk_freq_index <= PWDATA[3:2];
@@ -132,6 +160,10 @@ module reg_map #(
     always @(posedge PCLK or negedge PRESETn)begin
         if(!PRESETn)begin
             uart_stat_reg <= 0;
+        end else if(state == ACCESS)begin
+            if (!PWRITE && (PADDR == REG_UART_STAT))begin
+                PRDATA <= uart_stat_reg;
+            end
         end else begin
             uart_stat_reg[0] <= empty_rx;
             uart_stat_reg[1] <= rx_ready;
