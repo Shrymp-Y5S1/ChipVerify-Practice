@@ -47,6 +47,7 @@ module APB_interface #(
     // output declaration of module reg_map
     wire wr_en;
     wire rd_en_rx_fifo;
+    wire tx_en;
     wire [1:0] clk_freq_index;
     wire [1:0] baud_rate_index;
     // clock frequency and baud rate
@@ -67,13 +68,14 @@ module APB_interface #(
         .rx_dout_fifo    	(rx_dout_fifo     ),
         .empty_rx        	(empty_rx         ),
         .tx_busy         	(tx_busy          ),
-        .tx_ready 	        (data_ack                ),
+        .data_ack 	        (data_ack         ),
         .rx_error        	(rx_error         ),
         .rx_ready        	(rx_ready         ),
         .rx_busy         	(rx_busy          ),
         .wr_en           	(wr_en            ),
         .tx_din_fifo     	(tx_din_fifo      ),
         .rd_en_rx_fifo      (rd_en_rx_fifo    ),
+        .tx_en           	(tx_en            ),
         .clk_freq_index  	(clk_freq_index   ),
         .baud_rate_index 	(baud_rate_index  ),
         .PREADY          	(PREADY           ),
@@ -127,10 +129,10 @@ module APB_interface #(
         .rst_n    	(PRESETn        ),
         .baud_en  	(baud_en        ),
         .tx_data  	(tx_dout_fifo   ),
-        .tx_start 	(!empty_tx && !tx_busy       ),
+        .tx_start 	(!empty_tx && !tx_busy && tx_en),
         .tx       	(tx             ),
         .tx_busy  	(tx_busy        ),
-        .data_ack 	(       data_ack       )
+        .data_ack 	(data_ack       )
     );
 
     fifo #(

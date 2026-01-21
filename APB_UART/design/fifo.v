@@ -35,7 +35,6 @@ module fifo #(
     always @(posedge clk or negedge rst_n)begin
         if(!rst_n)begin
             rd_prt <= 0;
-            dout <= 0;
         end else begin
             if(rd_en && !empty)begin
                 rd_prt <= rd_prt + 1;

@@ -27,6 +27,8 @@ module reg_map #(
     output reg [DATA_WIDTH-1:0] tx_din_fifo,
     // output to uart_rx_fifo
     output reg rd_en_rx_fifo,
+    // output to uart_tx
+    output reg tx_en,
     // output to baud_generate
     output reg [1:0] clk_freq_index,
     output reg [1:0] baud_rate_index,
@@ -44,7 +46,7 @@ module reg_map #(
                REG_UART_INT = 16'h0c;
 
     reg[DATA_WIDTH-1:0] uart_data_reg;  // TX/RX register, data:[7:0]
-    reg[DATA_WIDTH-1:0] uart_ctrl_reg;  // Control register, en:[0], IE:[1], clk_freq_index:[3:2], baud_rate_index:[5:4]
+    reg[DATA_WIDTH-1:0] uart_ctrl_reg;  // Control register, en:[0], IE:[1], clk_freq_index:[3:2], baud_rate_index:[5:4], tx_en:[6]
     reg[DATA_WIDTH-1:0] uart_stat_reg;  // Status register, rx_empty:[0], rx_ready:[1], rx_busy:[2], rx_err:[3], tx_full:[4], tx_busy:[5]
     reg[DATA_WIDTH-1:0] uart_int_reg;   // Interrupt register , rx_done:[0], tx_done:[1]
 
@@ -162,6 +164,7 @@ module reg_map #(
                 uart_ctrl_reg <= PWDATA;
                 clk_freq_index <= PWDATA[3:2];
                 baud_rate_index <= PWDATA[5:4];
+                tx_en <= PWDATA[6];
             end
         end
     end

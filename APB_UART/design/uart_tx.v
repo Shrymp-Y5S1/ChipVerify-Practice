@@ -1,5 +1,7 @@
 module uart_tx #(
-    parameter DATA_WIDTH = 8
+    parameter DATA_WIDTH = 8,
+    parameter PARITY_EN = 1'b1,
+    parameter PARITY_TYPE = 1'b0   // 0:even, 1:odd
 )(
     input clk,
     input rst_n,
@@ -34,7 +36,6 @@ module uart_tx #(
             case(state)
                 IDLE:begin
                     if(tx_start)begin
-                        tx <= 0;
                         tx_data_reg <= tx_data;
                         state <= START_BIT;
                         tx_busy <= 1;
@@ -48,6 +49,7 @@ module uart_tx #(
                 START_BIT:begin
                     data_ack <= 0;
                     if(baud_en)begin
+                        tx <= 0;
                         state <= DATA_BITS;
                         bit_cnt <= 0;
                     end
@@ -56,14 +58,17 @@ module uart_tx #(
                     if(baud_en)begin
                         tx <= tx_data_reg[bit_cnt];
                         if(bit_cnt == DATA_WIDTH - 1)
-                            state <= PARITY_BIT;
+                            if(PARITY_EN)
+                                state <= PARITY_BIT;
+                            else
+                                state <= STOP_BIT;
                         else
                             bit_cnt <= bit_cnt + 1;
                     end
                 end
                 PARITY_BIT:begin
                     if(baud_en)begin
-                        tx <= ^tx_data_reg; // even parity
+                        tx <= (PARITY_TYPE ? ~^tx_data_reg : ^tx_data_reg);
                         state <= STOP_BIT;
                     end
                 end
@@ -71,6 +76,7 @@ module uart_tx #(
                     if(baud_en)begin
                         tx <= 1;
                         state <= IDLE;
+                        tx_busy <= 0;
                     end
                 end
             endcase
