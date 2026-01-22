@@ -70,7 +70,6 @@ module uart_rx #(
             if(baud_en_16x)begin
                 case(state)
                     IDLE: begin
-                        rx_ready <= 0;
                         rx_ready_d <= 0;
                         rx_error <= 0;
                         start_flag <= 0;
