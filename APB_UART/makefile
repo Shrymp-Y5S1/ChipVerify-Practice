@@ -15,9 +15,13 @@ VCS        = vcs -full64 -sverilog -debug_access+all -kdb -lca -timescale=1ns/1p
 SIM        = ./$(SIM_DIR)/simv
 VERDI      = verdi -dbdir $(SIM_DIR)/simv.daidir
 
+# 定义扫描的关键字符（需与 TB 中的 $display 匹配）
+PASS_STR = "SUCCESS\|Simulation finished"
+FAIL_STR = "ERROR\|FAIL\|MISMATCH"
+
 # --- 主要目标 ---
 
-all: clean comp sim
+all: clean comp sim check
 
 # 创建必要的目录
 prepare:
@@ -48,3 +52,17 @@ clean:
 	rm -rf *.fsdb *.log
 	rm -rf ucli.key novas*
 	rm -rf vc_hdrs.h
+
+check:
+	@echo "---------------------------------------------------"
+	@echo "Checking Simulation Result for [$(TEST)]..."
+	@if grep -iq $(FAIL_STR) $(LOG_DIR)/sim_$(TEST).log; then \
+		echo ">>>> RESULT: [FAILED] <<<<"; \
+		echo "Found error keywords in $(LOG_DIR)/sim_$(TEST).log"; \
+	elif grep -iq $(PASS_STR) $(LOG_DIR)/sim_$(TEST).log; then \
+		echo ">>>> RESULT: [PASSED] <<<<"; \
+	else \
+		echo ">>>> RESULT: [UNKNOWN] <<<<"; \
+		echo "No status keywords found. Check log manually."; \
+	fi
+	@echo "---------------------------------------------------"
