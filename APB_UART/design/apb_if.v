@@ -33,7 +33,6 @@ module apb_if #(
     wire empty_tx_fifo;
 
     // output declaration of module uart_tx
-    wire tx;
     wire tx_busy;
     wire data_ack;
     wire tx_ready;
@@ -128,7 +127,7 @@ module apb_if #(
         .rd_en 	(data_ack       ),
         .din   	(din_tx_fifo    ),
         .dout  	(tx_dout_fifo   ),
-        .full  	(   full_tx_fifo),
+        .full  	(full_tx_fifo),
         .empty 	(empty_tx_fifo  )
     );
 

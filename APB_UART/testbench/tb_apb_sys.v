@@ -87,7 +87,7 @@ module tb_apb_sys();
             @(posedge PCLK);
             PENABLE <= 1;
             wait(PREADY);
-            #1;
+            #1; // small delay to capture data
             data <= PRDATA;
             @(posedge PCLK);
             PSELx <= 0;
@@ -168,7 +168,7 @@ module tb_apb_sys();
             // Wait for completion
             read_val = 8'h0;
             while(read_val != 8'h03) begin
-                apb_read(REG_UART_INT, read_val);
+                apb_read(REG_UART_INT, read_val);   // wait for rx_done and tx_done
                 #1000;
             end
 
@@ -234,8 +234,8 @@ module tb_apb_sys();
             // Poll for RX Ready (Bit 1) or !RX Empty (Bit 0 low)
             read_val = 8'h00;
             // Timeout loop could be added here
-            while(read_val[1] == 1'b0) begin
-                apb_read(REG_UART_STAT, read_val);
+            while(read_val[0] == 1'b0) begin
+                apb_read(REG_UART_INT, read_val);
                 #1000;
             end
 
@@ -248,6 +248,9 @@ module tb_apb_sys();
                  $display("[%0t] RX Byte %0d MISMATCH! Exp:0x%h Got:0x%h", $time, i, i, read_val);
                  $finish;
             end
+            // Clear interrupts for next round
+            apb_write(REG_UART_INT, 8'h03);
+            #1000; // Small delay
 
             // Clear RX Interrupt (optional, depending on design if it blocks)
             // Assuming RX Ready clears on read or we just need to read.
