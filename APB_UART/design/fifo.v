@@ -9,7 +9,8 @@ module fifo #(
     input [DATA_WIDTH-1:0] din,
     output [DATA_WIDTH-1:0] dout,
     output full,
-    output empty
+    output empty,
+    output reg [ADDR_WIDTH:0] cnt
 );
 
     localparam DEPTH = 1 << ADDR_WIDTH;
@@ -17,7 +18,7 @@ module fifo #(
     reg [DATA_WIDTH-1:0] mem[DEPTH-1:0];
     reg [ADDR_WIDTH-1:0] wr_prt;
     reg [ADDR_WIDTH-1:0] rd_prt;
-    reg [ADDR_WIDTH:0] fifo_cnt;
+    // reg [ADDR_WIDTH:0] fifo_cnt;
 
     // write
     always @(posedge clk or negedge rst_n) begin
@@ -47,14 +48,14 @@ module fifo #(
     //fifo cnt
     always @(posedge clk or negedge rst_n)begin
         if(!rst_n)begin
-            fifo_cnt <= 0;
+            cnt <= 0;
         end else begin
-            fifo_cnt <= fifo_cnt + (wr_en && !full) -(rd_en && !empty);
+            cnt <= cnt + (wr_en && !full) - (rd_en && !empty);
         end
     end
 
     // full & empty
-    assign full = fifo_cnt == DEPTH;
-    assign empty = !fifo_cnt;
+    assign full = cnt == DEPTH;
+    assign empty = !cnt;
 
 endmodule

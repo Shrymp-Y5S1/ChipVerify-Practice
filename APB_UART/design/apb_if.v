@@ -20,7 +20,9 @@ module apb_if #(
     output [DATA_WIDTH-1:0] PRDATA,
     output PSLVERR,   // 1: error
     // to external device
-    output tx
+    output tx,
+    output dma_tx_req,
+    output dma_rx_req
 );
 
     // output declaration of module baud_generate
@@ -31,6 +33,7 @@ module apb_if #(
     wire [DATA_WIDTH-1:0] tx_dout_fifo;
     wire full_tx_fifo;
     wire empty_tx_fifo;
+    wire [ADDR_WIDTH:0] cnt_tx_fifo;
 
     // output declaration of module uart_tx
     wire tx_busy;
@@ -42,6 +45,7 @@ module apb_if #(
     wire [DATA_WIDTH-1:0] rx_dout_fifo;
     wire full_rx_fifo;
     wire empty_rx_fifo;
+    wire [ADDR_WIDTH:0] cnt_rx_fifo;
 
     // output declaration of module uart_rx
     wire rx_ready;
@@ -59,6 +63,8 @@ module apb_if #(
     wire wr_en_tx_fifo;
     wire rd_en_rx_fifo;
     wire tx_en;
+    // wire dma_tx_req;
+    // wire dma_rx_req;
 
     reg_map #(
         .ADDR_WIDTH  	(ADDR_WIDTH      ),
@@ -73,8 +79,10 @@ module apb_if #(
         .PWRITE          	(PWRITE           ),
         .PWDATA          	(PWDATA           ),
         .full_tx_fifo    	(full_tx_fifo     ),
+        .cnt_tx_fifo        (cnt_tx_fifo      ),
         .dout_rx_fifo    	(rx_dout_fifo     ),
         .empty_rx_fifo   	(empty_rx_fifo    ),
+        .cnt_rx_fifo        (cnt_rx_fifo      ),
         .tx_busy         	(tx_busy          ),
         .tx_ready        	(tx_ready         ),
         .rx_error        	(rx_error         ),
@@ -88,7 +96,9 @@ module apb_if #(
         .baud_rate_index 	(baud_rate_index  ),
         .din_tx_fifo     	(din_tx_fifo      ),
         .wr_en_tx_fifo   	(wr_en_tx_fifo    ),
+        .dma_tx_req      	(dma_tx_req       ),
         .rd_en_rx_fifo   	(rd_en_rx_fifo    ),
+        .dma_rx_req      	(dma_rx_req       ),
         .tx_en           	(tx_en            )
     );
 
@@ -128,7 +138,8 @@ module apb_if #(
         .din   	(din_tx_fifo    ),
         .dout  	(tx_dout_fifo   ),
         .full  	(full_tx_fifo),
-        .empty 	(empty_tx_fifo  )
+        .empty 	(empty_tx_fifo  ),
+        .cnt   	(cnt_tx_fifo)
     );
 
     uart_tx #(
@@ -159,7 +170,8 @@ module apb_if #(
         .din   	(rx_din_fifo    ),
         .dout  	(rx_dout_fifo   ),
         .full  	(full_rx_fifo   ),
-        .empty 	(empty_rx_fifo  )
+        .empty 	(empty_rx_fifo  ),
+        .cnt    (cnt_rx_fifo)
     );
 
     uart_rx #(

@@ -115,7 +115,7 @@ module tb_apb_sys();
         // enable uart, set clk = 50MHz, baud = 115200, enable tx
         // Control register, en:[0], IE:[1], clk_freq_index:[3:2], baud_rate_index:[6:4], tx_en:[7]
         $display("[%0t] Config: Setting UART CTRL register...", $time);
-        apb_write(REG_UART_CTRL, 8'h81); // en_sys=1, clk_freq_index=0 (50MHz), baud_rate_index=0 (115200), tx_en=1
+        apb_write(REG_UART_CTRL, 8'h83); // en_sys=1, IE=1, clk_freq_index=0 (50MHz), baud_rate_index=0 (115200), tx_en=1
 
         // -------------------------------------------------------------------------
         // Test Case 1: Single Byte Transmission
@@ -207,7 +207,7 @@ module tb_apb_sys();
         // 3b. Test TX FIFO Full
         // Disable TX first so data stays in FIFO
         $display("[%0t] Disable TX to fill FIFO...", $time);
-        apb_write(REG_UART_CTRL, 8'h01); // en_sys=1, tx_en=0
+        apb_write(REG_UART_CTRL, 8'h03); // en_sys=1, IE=1, tx_en=0
 
         $display("[%0t] Filling TX FIFO with 16 bytes...", $time);
         for (i = 0; i < 16; i = i + 1) begin
@@ -226,7 +226,7 @@ module tb_apb_sys();
 
         // 3c. Drain FIFO (Enable TX) and Verify Data
         $display("[%0t] Re-enable TX to drain FIFO...", $time);
-        apb_write(REG_UART_CTRL, 8'h81); // en_sys=1, tx_en=1
+        apb_write(REG_UART_CTRL, 8'h83); // en_sys=1, IE=1, tx_en=1
 
         // Receive 16 bytes
         $display("[%0t] Reading back 16 bytes...", $time);

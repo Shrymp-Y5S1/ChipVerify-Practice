@@ -14,10 +14,12 @@ module reg_map #(
 
     // input from uart_tx_fifo
     input full_tx_fifo,
+    input [ADDR_WIDTH:0] cnt_tx_fifo,
 
     // input from uart_rx_fifo
     input [DATA_WIDTH-1:0] dout_rx_fifo,
     input empty_rx_fifo,
+    input [ADDR_WIDTH:0] cnt_rx_fifo,
 
     // input from uart_tx
     input tx_busy,
@@ -43,9 +45,11 @@ module reg_map #(
     // output to uart_tx_fifo
     output reg [DATA_WIDTH-1:0] din_tx_fifo,
     output reg wr_en_tx_fifo,
+    output reg dma_tx_req,
 
     // output to uart_rx_fifo
     output reg rd_en_rx_fifo,
+    output reg dma_rx_req,
 
     // output to uart_tx
     output reg tx_en
@@ -64,7 +68,6 @@ module reg_map #(
     reg[DATA_WIDTH-1:0] uart_int_reg;   // Interrupt register , rx_done:[0], tx_done:[1]
 
     reg add_error;
-    reg IE;  // interrupt enable
 
     // PREADY
     always @(*)begin
@@ -173,13 +176,26 @@ module reg_map #(
     always @(posedge PCLK or negedge PRESETn)begin
         if(!PRESETn) begin
             uart_int_reg <= 0;
-        end else begin
+        end else if(uart_ctrl_reg[1])begin
             if(rx_ready) uart_int_reg[0] <= 1;   // rx_done
             if(tx_ready) uart_int_reg[1] <= 1;   // tx_done
             if(valid_write && (PADDR == REG_UART_INT)) begin
                 if(PWDATA[0]) uart_int_reg[0] <= 0;   // rx_done
                 if(PWDATA[1]) uart_int_reg[1] <= 0;   // tx_done
             end
+        end else begin
+            uart_int_reg <= 0;
+        end
+    end
+
+    // DMA request signals
+    always @(posedge PCLK or negedge PRESETn)begin
+        if(!PRESETn) begin
+            dma_tx_req <= 0;
+            dma_rx_req <= 0;
+        end else begin
+            dma_tx_req <= cnt_tx_fifo <= (1 << (ADDR_WIDTH-1)) && tx_en;   // half full
+            dma_rx_req <= cnt_rx_fifo >= (1 << (ADDR_WIDTH-1));   // half full
         end
     end
 
