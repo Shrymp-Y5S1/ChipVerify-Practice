@@ -158,9 +158,214 @@
 
 ---
 
-### 自定义类型
+### 自定义类型`typedef`
 
+> 引入自定义类型语法
 
+#### 基础
+
+> [!tip]
+>
+> 参考如下:`typedef 已有类型 新类型;`
+>
+> ```systemverilog
+> typedef logic [7:0] byte_t;
+> typedef logic [15:0] word_t;
+> typedef logic [31:0] dword_t;
+> typedef logic [63:0] qword_t;
+> 
+> // 另外又如
+> typedef logic[5:0] entry_t;
+> typedef entry_t[31:0] table_t;
+> ```
+>
+> 后续代码基于如上参考的自定义类型
+
+```systemverilog
+word_t a, b;
+assign b= {a[7:0], a[15:8]};
+
+table_t table1;	// logic [31:0][5:0]
+assign table1[1] = `0;
+assign table1[0][1] = `0;
+```
+
+---
+
+#### 结构体`struct`
+
+> 描述一组相关的数据
+>
+> 便于相关信号的**位宽管理**
+
+```systemverilog
+alufunc_t alufunc;
+logic mem_read;
+logic mem_write;
+logic regwrite;
+
+logic [6:0] control;
+assign control = {alufunc, mem_read, mem_write, regwrite};	// 当规模变大，如何管理control的位数呢？
+```
+
+结构体类型相关的语法如下：
+
+```systemverilog
+// type definition
+typedef struct packed {
+    logic [3:0] alufunc;
+    logic mem_read;
+    logic mem_write;
+    logic regwrite;
+} control_t;
+// packed: 将结构体内的成员在内存中形成一个连续的位向量，从而允许位运算或赋值给硬件信号
+
+// variable declaration
+control_t control;
+
+logic regwrite;
+assign regwrite = control.regwrite; // control[0]
+
+// using struct without typedef
+struct packed {
+    logic [3:0] alufunc;
+    logic mem_read;
+    logic mem_write;
+    logic regwrite;
+} control_without_typedef;
+// 缺点：不可复用。不推荐这么写
+```
+
+```systemverilog
+// 流水线寄存器描述
+typedef struct packed {
+    
+}pipline_decode_t;
+pipline_decode_t p, p_nxt;
+always_ff @(posedge clk)begin
+	p <= p_nxt;
+end
+```
+
+---
+
+#### 枚举`enum`
+
+> 常用于**编码**（包括状态机编码），等价于**定义一堆宏**：``define ADD 4'b0000`
+>
+> **强类型**
+
+```systemverilog
+typedef enum <datatype> {
+    IDEN_1, IDEN_2
+}typename;
+```
+
+举例：
+
+```systemverilog
+typedef enum logic [3:0] {
+    ALU_ADD, ALU_AND, ALU_SUB
+}alufunc_t;	// logic [3:0]表示最多可以存16种状态，这里只用了3种状态
+
+alufunc_t alufunc;
+
+enum logic [3:0] {
+    ALU_ADD, ALU_AND, ALU_SUB
+} alufunc_without_typedef;
+```
+
+> [!tip]
+>
+> 定义`enum`后，编译器会自动分配：
+>
+> - **`ALU_ADD`** = `4'd0`
+> - **`ALU_AND`** = `4'd1`
+> - **`ALU_SUB`** = `4'd2` 
+>
+> 默认从 0 开始递增。也可以手动指定，例如 `{ALU_ADD=4'b1000, ...}`。
+
+工业界的标准写法：将 `enum` 嵌套进 `struct` 
+
+```systemverilog
+typedef struct packed {
+    alufunc_t        op;	// 使用枚举定义操作码
+    logic [31:0]     a, b;
+} instruction_t;
+```
+
+```systemverilog
+typedef enum logic [1:0] {
+    STATE_0, STATE_1, STATE_2
+}state_t;
+
+state_t state, state_nxt;
+always_ff @(posedge clk) begin
+    if (~resetn) begin
+        state <= state_t'(0);
+        // 将数值 0 强制转换为枚举类型 state_t，并赋值给状态寄存器 state
+        // <type>'( <expression> )一种编译时确定的类型转换
+    end else begin
+    	state <= state_nxt;    
+    end
+end
+```
+
+---
+
+#### 联合`union`
+
+> 多套“马甲”**共用同一块内存**（位向量）
+
+> [!tip]
+>
+> `packed`要求所有成员的**总位宽必须完全相等**
+
+```systemverilog
+typedef union packed {
+    struct packed {
+        logic zero; // 确保与其他数据量位宽一致，无实际作用
+        logic [31:0] aluout;
+    }alu;
+    struct packed {
+        logic branch_tanken;
+        logic [31:0] pcbranch;
+    }branch;
+    struct packed {
+        logic [31:0] addr;
+        logic mem_read;
+    }memory;
+}result_t;
+
+result_t res;
+
+logic [31:0] addr;
+assign addr = res.memory.addr; // assign addr = res[32:1]
+assign aluout = res.alu.aluout; // assign aluout = res[31:0]
+
+assign res.alu.aluout = '1;
+```
+
+> [!caution]
+>
+> 对`union`类型的变量进行赋值时，要注意多驱动。
+>
+> 如已经有`assign res.alu.aluout = '1;`，即低32位已经有驱动了，`branch`的`pcbranch`、`memory`的`mem_read`都不能再赋值
+
+---
+
+#### `struct`与`union`对比
+
+> [!tip]
+>
+> 相同的成员定义，struct占用空间≈3*union占用空间
+
+| **特性**     | **struct packed (结构体)**     | **union packed (联合体)**                  |
+| ------------ | ------------------------------ | ------------------------------------------ |
+| **位宽计算** | 各成员位宽**之和**             | 等于**最长成员**的位宽                     |
+| **内存关系** | 成员按顺序排列，互不干扰       | **所有成员共享同一段内存**                 |
+| **硬件隐喻** | 一条包含多个字段的**复合总线** | 一个具有多种解释方式的**多路复用器 (MUX)** |
+| **应用场景** | 组织指令包、状态控制信号       | 节省面积、实现通用的计算结果通路           |
 
 ---
 
