@@ -83,7 +83,16 @@ APB_UART
 
 ### 1. APB 接口与寄存器 (APB Interface & Registers)
 
+
+
 * **APB Slave**: 符合 AMBA APB 协议标准，支持 32 位地址总线（实际解码低 4 位）和 8 位数据传输。
+
+![machine_state](./README.assets/machine_state.png)
+
+![write_transfer](./README.assets/write_transfer.png)
+
+![read_transfer](./README.assets/read_transfer.png)
+
 * **Register Access (reg_map)**:
     * 处理 APB 读写请求，映射到内部配置寄存器。
     * **中断机制**: 生成 `rx_done` (接收完成) 和 `tx_done` (发送完成) 中断信号。
@@ -142,7 +151,7 @@ APB_UART
    ```bash
    # 测试 APB 系统级读写
    make all TEST=tb_apb_sys
-
+   
    # 单独测试 FIFO 模块
    make all TEST=tb_fifo
    ```
