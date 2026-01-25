@@ -6,6 +6,39 @@
 
 <img src="./README.assets/Block_diagram.png" alt="Block_diagram" style="zoom:80%;" />
 
+## 目录结构 (Directory Structure)
+
+```text
+APB_UART
+├── design               # RTL 设计源码
+│   ├── apb_if_pkg.sv    # 接口包定义
+│   ├── apb_if.v         # APB 顶层接口
+│   ├── baud_generate.v  # 波特率发生器
+│   ├── fifo.v           # FIFO 缓冲区
+│   ├── reg_map.v        # 寄存器映射
+│   ├── uart_rx.v        # UART 接收模块
+│   └── uart_tx.v        # UART 发送模块
+├── flist                # 仿真文件列表
+│   ├── cm.hier          # 覆盖率层级配置
+│   ├── design_apb_sys.f
+│   ├── design_fifo.f
+│   ├── design_uart.f
+│   ├── tb_apb_sys.f
+│   ├── tb_fifo.f
+│   ├── tb_top_uvm.f
+│   ├── tb_uart_core.f
+│   └── tb_uart_fifo.f
+├── testbench            # 仿真测试平台
+│   ├── apb_pkg.sv       # TB 包定义
+│   ├── tb_apb_sys.v     # 系统级 Testbench
+│   ├── tb_fifo.v        # FIFO Testbench
+│   ├── tb_top_uvm.sv    # UVM Testbench (Top)
+│   ├── tb_uart_core.v   # UART 核心 Testbench
+│   └── tb_uart_fifo.v   # UART+FIFO Testbench
+├── makefile             # 仿真脚本
+└── README.md            # 项目说明文档
+```
+
 ## 寄存器映射 (Register Map)
 
 | 偏移地址 (Offset) | 寄存器名称 (Name) | 位宽 | 描述 (Description) |
@@ -109,7 +142,7 @@
    ```bash
    # 测试 APB 系统级读写
    make all TEST=tb_apb_sys
-   
+
    # 单独测试 FIFO 模块
    make all TEST=tb_fifo
    ```
@@ -124,36 +157,3 @@
    ```bash
    make clean
    ```
-
-## 目录结构 (Directory Structure)
-
-```text
-APB_UART
-├── design               # RTL 设计源码
-│   ├── apb_if_pkg.sv    # 接口包定义
-│   ├── apb_if.v         # APB 顶层接口
-│   ├── baud_generate.v  # 波特率发生器
-│   ├── fifo.v           # FIFO 缓冲区
-│   ├── reg_map.v        # 寄存器映射
-│   ├── uart_rx.v        # UART 接收模块
-│   └── uart_tx.v        # UART 发送模块
-├── flist                # 仿真文件列表
-│   ├── cm.hier          # 覆盖率层级配置
-│   ├── design_apb_sys.f
-│   ├── design_fifo.f
-│   ├── design_uart.f
-│   ├── tb_apb_sys.f
-│   ├── tb_fifo.f
-│   ├── tb_top_uvm.f
-│   ├── tb_uart_core.f
-│   └── tb_uart_fifo.f
-├── testbench            # 仿真测试平台
-│   ├── apb_pkg.sv       # TB 包定义
-│   ├── tb_apb_sys.v     # 系统级 Testbench
-│   ├── tb_fifo.v        # FIFO Testbench
-│   ├── tb_top_uvm.sv    # UVM Testbench (Top)
-│   ├── tb_uart_core.v   # UART 核心 Testbench
-│   └── tb_uart_fifo.v   # UART+FIFO Testbench
-├── makefile             # 仿真脚本
-└── README.md            # 项目说明文档
-```

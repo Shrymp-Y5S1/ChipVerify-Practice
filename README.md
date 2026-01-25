@@ -4,6 +4,15 @@
 
 ## 模块索引 (Module Index)
 
+### Projects (工程练习)
+
+- **APB UART** (基于 APB 总线的 UART): [APB_UART](APB_UART)
+
+### Notes (学习笔记)
+
+- SystemVerilog 验证测试平台编写指南（第二版）: [Notes/HVL_SV.md](Notes/HVL_SV.md)
+- UVM实战: [Notes/UVM.md](Notes/UVM.md)
+
 ### Combinational (组合逻辑)
 
 - **4x1 Multiplexer** (4选1多路选择器): [Combinational/4x1_Mux](Combinational/4x1_Mux)
@@ -34,12 +43,3 @@
 - **Handshake Buffer** (握手缓冲): [Architecture/Handshake_Buffer](Architecture/Handshake_Buffer)
 - **Pipeline Multiplier** (流水线乘法器): [Architecture/Pipeline_Mult](Architecture/Pipeline_Mult)
 - **Pulse Synchronizer** (脉冲同步器): [Architecture/Pulse_Synchronizer](Architecture/Pulse_Synchronizer)
-
-### Projects (工程项目)
-
-- **APB UART** (基于 APB 总线的 UART): [APB_UART](APB_UART)
-
-### Notes (学习笔记)
-
-- SystemVerilog 验证测试平台编写指南（第二版）: [Notes/HVL_SV.md](Notes/HVL_SV.md)
-- UVM实战: [Notes/UVM.md](Notes/UVM.md)
