@@ -1,5 +1,6 @@
 # VCS & Verdi
 csrc/
+out/
 simv
 simv.daidir/
 *.fsdb

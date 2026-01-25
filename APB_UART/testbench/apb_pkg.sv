@@ -45,8 +45,15 @@ package apb_pkg;
             @(vif.cb);
             vif.cb.PENABLE <= 1;
 
-            wait(vif.cb.PREADY == 1);
+            // 等待一个时钟周期，确保进入 Access Phase 且 RTL 有时间响应
             @(vif.cb);
+            while(vif.cb.PREADY == 0) begin
+                @(vif.cb);
+            end
+
+            if (tr.write == 0) begin    // 读操作，采样总线数据回传给Transaction对象
+                tr.data = vif.cb.PRDATA;
+            end
             vif.cb.PSELx <= 0;
             vif.cb.PENABLE <= 0;
         endtask
@@ -70,13 +77,13 @@ package apb_pkg;
                 expected = expected_queue.pop_front();
                 if(actual_data == expected)begin
                     match_cnt++;
-                    `uvm_info("SCB",$sformatf("Match: expected=%0h, actual=%0h", expected, actual_data), UVM_LOW);
+                    `uvm_info("SCB",$sformatf("Match: expected=%0h, actual=%0h", expected, actual_data), UVM_LOW)
                 end else begin
                     error_cnt++;
-                    `uvm_error("SCB",$sformatf("Mismatch: expected=%0h, actual=%0h", expected, actual_data));
+                    `uvm_error("SCB",$sformatf("Mismatch: expected=%0h, actual=%0h", expected, actual_data))
                 end
             end else begin
-                    `uvm_error("SCB","No expected data available (Queue is empty)");
+                    `uvm_error("SCB","No expected data available (Queue is empty)")
             end
         endfunction
 
