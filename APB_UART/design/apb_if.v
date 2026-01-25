@@ -21,6 +21,7 @@ module apb_if #(
     output PSLVERR,   // 1: error
     // to external device
     output tx,
+    output rx_ready_out,    // tell CPU or monitor to read data
     output dma_tx_req,
     output dma_rx_req
 );
@@ -188,5 +189,7 @@ module apb_if #(
         .rx_busy     	(rx_busy      ),
         .rx_error    	(rx_error     )
     );
+
+    assign rx_ready_out = rx_ready;
 
 endmodule

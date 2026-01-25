@@ -11,13 +11,13 @@ SIM_DIR    = $(OUT_DIR)/sim_$(TEST)
 FSDB_FILE  = $(TEST).fsdb
 
 # 工具链定义
-VCS        = vcs -full64 -sverilog -debug_access+all -kdb -lca -timescale=1ns/1ps
+VCS        = vcs -full64 -sverilog -ntb_opts uvm -debug_access+all -kdb -lca -timescale=1ns/1ps
 SIM        = ./$(SIM_DIR)/simv
 VERDI      = verdi -dbdir $(SIM_DIR)/simv.daidir
 
 # 定义扫描的关键字符（需与 TB 中的 $display 匹配）
-PASS_STR = "SUCCESS\|Simulation finished"
-FAIL_STR = "ERROR\|FAIL\|MISMATCH"
+PASS_STR = "MATCHES: [1-9]\|TEST PASSED"
+FAIL_STR = "UVM_ERROR : [1-9]\|UVM_FATAL : [1-9]\|MISMATCH"
 
 # --- 主要目标 ---
 
@@ -56,13 +56,13 @@ clean:
 check:
 	@echo "---------------------------------------------------"
 	@echo "Checking Simulation Result for [$(TEST)]..."
-	@if grep -iq $(FAIL_STR) $(LOG_DIR)/sim_$(TEST).log; then \
-		echo ">>>> RESULT: [FAILED] <<<<"; \
-		echo "Found error keywords in $(LOG_DIR)/sim_$(TEST).log"; \
-	elif grep -iq $(PASS_STR) $(LOG_DIR)/sim_$(TEST).log; then \
+	@# 统计 UVM_ERROR 的数量
+	@errors=$$(grep -c "UVM_ERROR" $(LOG_DIR)/sim_$(TEST).log || true); \
+	if [ $$errors -gt 0 ]; then \
+		echo ">>>> RESULT: [FAILED] (Found $$errors UVM_ERRORS) <<<<"; \
+	elif grep -iq "MATCHES: 10" $(LOG_DIR)/sim_$(TEST).log; then \
 		echo ">>>> RESULT: [PASSED] <<<<"; \
 	else \
 		echo ">>>> RESULT: [UNKNOWN] <<<<"; \
-		echo "No status keywords found. Check log manually."; \
 	fi
 	@echo "---------------------------------------------------"
