@@ -1,5 +1,7 @@
 # UVM 实战（卷 I）
 
+<img src="./UVM.assets/UVM_cover.png" alt="UVM_cover" style="zoom:50%;" />
+
 [TOC]
 
 验证的目的：**保证 DUT 的功能符合 Spec 要求**
@@ -31,7 +33,7 @@
 > >
 > > $\text{sequencer}\rightarrow\text{driver}\rightarrow\text{monitor}\rightarrow\text{in-agent}\rightarrow\text{reference model}\rightarrow\text{real value}$
 > >
-> > $\text{scoreboard}=(expect value==real value)$
+> > $\text{scoreboard}=(\text{expect value}==\text{real value})$
 
 ### 一个简单的 driver 示例
 
@@ -75,6 +77,23 @@ task my_driver::main_phase(uvm_phase phase);
 endtask
 ```
 
+> [!tip]
+>
+> - 在 SystemVerilog 中，要使用 UVM 的功能（即使只是简单的 ``uvm_info`），必须先向编译器“声明”这些内容的存在。
+>
+> ```systemverilog
+> // 1. 包含 UVM 宏文件 (必须在 package 之外或之前)
+> `include "uvm_macros.svh"
+> 
+> // 2. 导入 UVM 包
+> import uvm_pkg::*;
+> ```
+>
+> - `uvm_info` 和 `uvm_error` 在 UVM 中是 **宏定义**（`define`），它们会展开成一整条语句。
+>   - 在 SystemVerilog 中，`if (...) statement; else statement;` 的语法要求 **语句必须完整**。
+>   - 但是宏展开后往往包含分号，直接写在 `if` 后面可能导致 **语句不匹配** 或 **else 绑定错误**。建议写成 **begin/end 块**，避免语法歧义
+> - `uvm_info` 宏内部已经 **自带分号**。再额外加分号(`;`)会导致 **空语句**，此时如果配上 `if...else...` 而不加 `begin...else...` 必然报错。
+
 ``uvm_info(" my_driver ", " data is drived ", UVM_LOW)`
 
 - `"my_driver"` → 消息来源标签（方便定位）。
@@ -91,6 +110,7 @@ endtask
 > - **作用**：在 UVM 日志系统中打印一条信息。（强于 verilog 中的 `$display`）
 > - UVM 默认只显示 `UVM_MEDIUM` 或者 `UVM_LOW` 的信息，关键信息设置为 `UVM_LOW`
 > - `UVM_INFO` 关键字：表明这是一个 `uvm_info` 宏打印的结果。除了 `uvm_info` 宏外，还有 `uvm_error` 宏、`uvm_warning` 宏
+> - `uvm_error` / ``uvm_fatal`: 只接收 2 个参数 `(ID, MSG)`。因为“错误”和“致命错误”是必须打印的，它们没有“冗余度”过滤的概念 
 
 ```systemverilog
 // top_tb.sv
@@ -138,6 +158,12 @@ module top_tb;
 
 endmodule
 ```
+
+> `xx_pkg`：打包了 `xx` 相关定义和工具的模块库，方便在工程中统一调用和复用。
+>
+> **定义**：`package` 是 SystemVerilog 提供的一种机制，用来集中存放 **类型定义、参数、常量、函数、任务** 等公共资源。
+>
+> **作用**：类似于软件编程语言里的“模块库”或“命名空间”，方便在多个文件或模块中统一调用，避免重复定义。
 
 ### factory 机制
 

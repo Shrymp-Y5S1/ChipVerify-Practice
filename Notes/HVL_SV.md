@@ -1,10 +1,12 @@
 # System Verilog验证测试平台编写指南
 
+<img src="./HVL_SV.assets/SV_cover.png" alt="SV_cover" style="zoom: 40%;" />
+
 [TOC]
 
 ## 验证流程
 
-**验证目的：确保设计的代码符合设计文档的规范**
+**验证目的：确保DUT符合Spec文档的规范**
 
 - 阅读 spec 文档（信号含义、时序、寄存器、功能）
 - 提取功能点，制定验证计划（excel）
