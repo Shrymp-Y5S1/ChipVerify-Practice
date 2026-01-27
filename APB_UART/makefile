@@ -1,17 +1,24 @@
 # --- 路径与参数定义 ---
 # 默认仿真的测试名，可以通过 make TEST=tb_fifo 覆盖
 TEST      ?= tb_uart_core
+# 随机数种子，可以通过 make SEED=12345 进行覆盖
+SEED      := $(shell date +%s)
 FLIST     ?= ./flist/$(TEST).f
 TOP       ?= $(TEST)
 
 # 目录定义
 OUT_DIR    = ./out
+COV_DB_DIR = ./coverage_db
 LOG_DIR    = $(OUT_DIR)/logs
 SIM_DIR    = $(OUT_DIR)/sim_$(TEST)
 FSDB_FILE  = $(TEST).fsdb
+# 确保 sim 和 check 操作的是同一个文件
+CURRENT_LOG = $(LOG_DIR)/sim_$(TEST)_$(SEED).log
 
 # 工具链定义
-VCS        = vcs -full64 -sverilog -ntb_opts uvm -debug_access+all -kdb -lca -timescale=1ns/1ps
+VCS        = vcs -full64 -sverilog -ntb_opts uvm -debug_access+all -kdb -lca -timescale=1ns/1ps \
+             -assert enable_debug \
+             +define+SVA_ENABLE
 SIM        = ./$(SIM_DIR)/simv
 VERDI      = verdi -dbdir $(SIM_DIR)/simv.daidir
 
@@ -21,7 +28,7 @@ FAIL_STR = "UVM_ERROR : [1-9]\|UVM_FATAL : [1-9]\|MISMATCH"
 
 # 覆盖率相关设置
 CM_NAME  = $(TEST)
-CM_DIR   = $(OUT_DIR)/coverage/$(TEST).vdb
+CM_DIR   = $(COV_DB_DIR)/$(TEST).vdb
 CM_OPTS  = -cm line+cond+fsm+tgl+branch+assert
 CM_HIER  = -cm_hier ./flist/cm.hier
 
@@ -45,10 +52,13 @@ comp: prepare
 
 # 仿真
 sim:
+	@echo "Running Test: $(TEST) with Seed: $(SEED)"
+	mkdir -p $(LOG_DIR)
 	cd $(SIM_DIR) && ./simv \
-	       -l ../logs/sim_$(TEST).log \
+	       -l $(abspath $(CURRENT_LOG)) \
 	       +fsdb+name=$(FSDB_FILE) \
-	       $(CM_OPTS) -cm_dir ../../$(CM_DIR) -cm_name $(CM_NAME)
+	       +ntb_random_seed=$(SEED) \
+	       $(CM_OPTS) -cm_dir $(abspath $(CM_DIR)) -cm_name $(CM_NAME)
 
 # 打开波形 (Verdi)
 verdi:
@@ -56,34 +66,48 @@ verdi:
 
 # 清理
 clean:
-	@echo "Cleaning up all simulation and tool artifacts..."
+	@echo "Cleaning up simulation artifacts (Keeping Coverage)..."
 	rm -rf $(OUT_DIR)
-	rm -rf csrc simv*
+	rm -rf csrc simv* *.fsdb *.log ucli.key vc_hdrs.h vdCovLog
+
+distclean: clean
+	@echo "WARNING: Deleting Coverage Database..."
+	rm -rf $(COV_DB_DIR)
 	rm -rf verdiLog vfastLog
-	rm -rf *.fsdb *.log
-	rm -rf ucli.key novas*
-	rm -rf vc_hdrs.h
 
 # 生成覆盖率报告
 coverage:
-	urg -dir $(OUT_DIR)/coverage/*.vdb -format both -report $(OUT_DIR)/coverage_report
+	urg -full64 -dir $(COV_DB_DIR)/*.vdb \
+		-format both \
+		-report $(OUT_DIR)/coverage_report \
+		-show tests
+
+# 查看覆盖率代码着色（如果有这个license，否则HTML）
+cov_gui:
+	$(VERDI) -cov -covdir $(CM_DIR) &
 
 # 结果检查
 check:
 	@echo "---------------------------------------------------"
-	@echo "Checking Simulation Result for [$(TEST)]..."
-	@# 1. 检查是否存在 UVM 错误
-	@errors=$$(grep -E "UVM_ERROR|UVM_FATAL" $(LOG_DIR)/sim_$(TEST).log | grep -v ": 0" | wc -l); \
-	if [ $$errors -gt 0 ]; then \
-		echo ">>>> RESULT: [FAILED] (Found $$errors UVM Errors/Fatals) <<<<"; \
+	@echo "Checking Simulation Result for [$(TEST)] Seed [$(SEED)]..."
+	@echo "Log file: $(CURRENT_LOG)"
+	@# 0. 先检查 Log 文件是否存在 (防止 simv 根本没跑起来)
+	@if [ ! -f $(CURRENT_LOG) ]; then \
+		echo ">>>> RESULT: [FATAL] Log file not found! Simulation failed to start? <<<<"; \
 		exit 1; \
 	fi; \
-	# 2. 检查 Scoreboard 是否汇报了任何错误 [cite: 144]
-	@scb_errs=$$(grep "ERRORS :" $(LOG_DIR)/sim_$(TEST).log | awk '{print $$3}'); \
+	# 1. 检查 UVM 错误 + SVA 断言错误 (针对当前具体的 Log 文件)
+	@errors=$$(grep -E "UVM_ERROR|UVM_FATAL|Error:|Offending" $(CURRENT_LOG) | grep -v ": 0" | wc -l); \
+	if [ $$errors -gt 0 ]; then \
+		echo ">>>> RESULT: [FAILED] (Found $$errors Errors/Fatals/Assertion Failures) <<<<"; \
+		exit 1; \
+	fi; \
+	# 2. 检查 Scoreboard (针对当前具体的 Log 文件)
+	@scb_errs=$$(grep "ERRORS :" $(CURRENT_LOG) | awk '{print $$3}'); \
 	if [ "$$scb_errs" != "0" ] && [ -n "$$scb_errs" ]; then \
 		echo ">>>> RESULT: [FAILED] (Scoreboard reported $$scb_errs errors) <<<<"; \
 		exit 1; \
 	fi; \
-	# 3. 如果以上都没有，则判定为成功
+	# 3. 成功
 	@echo ">>>> RESULT: [PASSED] <<<<";
 	@echo "---------------------------------------------------"

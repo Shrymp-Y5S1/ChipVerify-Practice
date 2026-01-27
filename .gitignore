@@ -1,6 +1,7 @@
 # VCS & Verdi
 csrc/
 out/
+coverage_db/
 simv
 simv.daidir/
 *.fsdb
@@ -9,9 +10,10 @@ simv.daidir/
 ucli.key
 vc_hdrs.h
 DVEfiles/
-verdiLog/
 *.log
 novas.*
+verdiLog/
+vfastLog/
 
 # EditorConfig (optional)
 # .editorconfig
