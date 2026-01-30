@@ -1,9 +1,12 @@
+
 module axi_read_master_lite (
     input aclk,
     input aresetn,
 
-    output reg [`ID_WIDTH-1:0] arid,
-    output reg [`ADDR_WIDTH-1:0] araddr,
+    // output reg [`ID_WIDTH-1:0] arid,
+    // output reg [`ADDR_WIDTH-1:0] araddr,
+    output reg [axi_pkg::ID_WIDTH-1:0] arid,
+    output reg [axi_pkg::ADDR_WIDTH-1:0] araddr,
     output reg [7:0] arlen,     // Burst length = arlen + 1
     output reg [2:0] arsize,    // bytes = 1 << arsize
     output reg [1:0] arburst,   // 00: fixed, 01: increment, 10: wrap
@@ -11,6 +14,8 @@ module axi_read_master_lite (
 
     input arready
 );
+
+    import axi_pkg::*;
 
     // handshake
     always @(posedge aclk or negedge aresetn)begin
