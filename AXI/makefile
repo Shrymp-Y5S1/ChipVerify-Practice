@@ -1,6 +1,6 @@
 # --- 路径与参数定义 ---
 # 默认仿真的测试名，可以通过 make TEST=tb_xxx 覆盖
-TEST      ?= tb_top_axi_master_read
+TEST      ?= tb_axi_basic
 # 随机数种子，可以通过 make SEED=12345 进行覆盖
 SEED      := $(shell date +%s)
 FLIST     ?= ./flist/$(TEST).f
