@@ -10,6 +10,7 @@ module tb_axi_basic();
             );
 
     initial begin
+        #(`SIM_PERIOD/2);
         clk = 0;
         forever
             #(`SIM_PERIOD/2) clk = ~clk;
@@ -20,6 +21,7 @@ module tb_axi_basic();
         begin
             rst_n = 0;
             #(`SIM_PERIOD);
+            # 0.1;
             rst_n = 1;
         end
     endtask
