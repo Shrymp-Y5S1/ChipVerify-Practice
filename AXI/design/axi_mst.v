@@ -18,7 +18,6 @@ module axi_mst(
         input axi_mst_rvalid,
         output axi_mst_rready
     );
-    localparam DLY = 0.1;
 
     // ----------------------------------------------------------------
     // internal registers
@@ -40,7 +39,8 @@ module axi_mst(
     reg [`AXI_BURST_WIDTH-1:0] rd_burst_buff_r;     // AXI Burst type buffer
 
     // Read Data buffers
-    reg [`AXI_DATA_WIDTH-1:0] rd_data_buff_r;       // Read data buffer
+    reg [`AXI_DATA_WIDTH-1:0] rd_data_buff_r [`BURST_CNT_WIDTH-1:0];       // Read data buffer
+    reg [`BURST_CNT_WIDTH-1:0] rd_data_cnt_r;       // Counter for burst data
     reg [`AXI_RESP_WIDTH-1:0] rd_resp_buff_r;       // Read response buffer
 
     wire rd_req_en;        // Read request handshake(valid & ready)
@@ -61,39 +61,52 @@ module axi_mst(
     // FSM: Valid Buffer Register
     always @(posedge clk or negedge rst_n) begin
         if(!rst_n) begin
-            rd_valid_buff_r <= #DLY 1'b0;
+            rd_valid_buff_r <= #`DLY 1'b0;
         end
         else if(rd_buff_set) begin
-            rd_valid_buff_r <= #DLY 1'b1; // Set valid buffer
+            rd_valid_buff_r <= #`DLY 1'b1; // Set valid buffer
         end
         else if(rd_buff_clr) begin
-            rd_valid_buff_r <= #DLY 1'b0; // Clear valid buffer
+            rd_valid_buff_r <= #`DLY 1'b0; // Clear valid buffer
         end
     end
 
     // FSM: Request Buffer Register
     always @(posedge clk or negedge rst_n) begin
         if(!rst_n) begin
-            rd_req_buff_r <= #DLY 1'b0;
+            rd_req_buff_r <= #`DLY 1'b0;
         end
         else if(rd_buff_set) begin
-            rd_req_buff_r <= #DLY 1'b1; // Set request buffer
+            rd_req_buff_r <= #`DLY 1'b1; // Set request buffer
         end
         else if(rd_req_en) begin
-            rd_req_buff_r <= #DLY 1'b0; // Clear request buffer on handshake
+            rd_req_buff_r <= #`DLY 1'b0; // Clear request buffer on handshake
         end
     end
 
     // FSM: Completion Buffer Register
     always @(posedge clk or negedge rst_n) begin
         if(!rst_n) begin
-            rd_comp_buff_r <= #DLY 1'b0;
+            rd_comp_buff_r <= #`DLY 1'b0;
         end
         else if(rd_buff_set) begin
-            rd_comp_buff_r <= #DLY 1'b1;    // Set completion buffer
+            rd_comp_buff_r <= #`DLY 1'b1;    // Set completion buffer
         end
         else if(rd_result_en & rd_result_last) begin
-            rd_comp_buff_r <= #DLY 1'b0;    // Clear completion buffer on last read data result handshake
+            rd_comp_buff_r <= #`DLY 1'b0;    // Clear completion buffer on last read data result handshake
+        end
+    end
+
+    // Read Data Counter
+    always @(posedge clk or negedge rst_n) begin
+        if(!rst_n) begin
+            rd_data_cnt_r <= #`DLY {`BURST_CNT_WIDTH{1'b0}};
+        end
+        else if(rd_buff_set) begin
+            rd_data_cnt_r <= #`DLY {`BURST_CNT_WIDTH{1'b0}};
+        end
+        else if(rd_result_en) begin
+            rd_data_cnt_r <= #`DLY rd_data_cnt_r + 1'b1;
         end
     end
 
@@ -102,16 +115,58 @@ module axi_mst(
     // ----------------------------------------------------------------
     always @(posedge clk or negedge rst_n) begin
         if(!rst_n) begin
-            rd_id_buff_r <= #DLY {`AXI_ID_WIDTH{1'b0}};
-            rd_addr_buff_r <= #DLY {`AXI_ADDR_WIDTH{1'b0}};
-            rd_len_buff_r <= #DLY {`AXI_LEN_WIDTH{1'b0}};
-            rd_size_buff_r <= #DLY `AXI_SIZE_4_BYTE;
-            rd_burst_buff_r <= #DLY `AXI_BURST_INCR;
+            rd_id_buff_r <= #`DLY {`AXI_ID_WIDTH{1'b0}};
+            rd_addr_buff_r <= #`DLY {`AXI_ADDR_WIDTH{1'b0}};
+            rd_len_buff_r <= #`DLY {`AXI_LEN_WIDTH{1'b0}};
+            rd_size_buff_r <= #`DLY `AXI_SIZE_4_BYTE;
+            rd_burst_buff_r <= #`DLY `AXI_BURST_INCR;
         end
         else if(rd_req_en) begin    // On read request handshake
-            rd_id_buff_r <= #DLY rd_id_buff_r + `AXI_ID_WIDTH'h1;   // Increment ID for each request
-            rd_addr_buff_r <= #DLY ((rd_id_buff_r + `AXI_ID_WIDTH'h1) < `AXI_ID_WIDTH'hA) ? `AXI_ADDR_WIDTH'h0 : `AXI_ADDR_WIDTH'h1; // Address toggle logic
-            rd_len_buff_r <= #DLY rd_len_buff_r + `AXI_LEN_WIDTH'h1; // Increment length for each request
+            rd_id_buff_r <= #`DLY rd_id_buff_r + `AXI_ID_WIDTH'h1;   // Increment ID for each request
+            case (rd_id_buff_r[2:0])
+                3'b000: begin
+                    rd_addr_buff_r <= #`DLY `AXI_ADDR_WIDTH'h0;
+                    rd_burst_buff_r <= #`DLY `AXI_BURST_INCR;
+                    rd_len_buff_r <= #`DLY `AXI_LEN_WIDTH'h0;
+                    rd_size_buff_r <= #`DLY `AXI_SIZE_4_BYTE;
+                end
+                3'b001: begin
+                    rd_addr_buff_r <= #`DLY `AXI_ADDR_WIDTH'h10;
+                    rd_burst_buff_r <= #`DLY `AXI_BURST_INCR;
+                    rd_len_buff_r <= #`DLY `AXI_LEN_WIDTH'h3;
+                    rd_size_buff_r <= #`DLY `AXI_SIZE_4_BYTE;
+                end
+                3'b010: begin
+                    rd_addr_buff_r <= #`DLY `AXI_ADDR_WIDTH'h20;
+                    rd_burst_buff_r <= #`DLY `AXI_BURST_INCR;
+                    rd_len_buff_r <= #`DLY `AXI_LEN_WIDTH'h7;
+                    rd_size_buff_r <= #`DLY `AXI_SIZE_4_BYTE;
+                end
+                3'b011: begin
+                    rd_addr_buff_r <= #`DLY `AXI_ADDR_WIDTH'h30;
+                    rd_burst_buff_r <= #`DLY `AXI_BURST_FIXED;
+                    rd_len_buff_r <= #`DLY `AXI_LEN_WIDTH'h3;
+                    rd_size_buff_r <= #`DLY `AXI_SIZE_4_BYTE;
+                end
+                3'b100: begin
+                    rd_addr_buff_r <= #`DLY `AXI_ADDR_WIDTH'h34;
+                    rd_burst_buff_r <= #`DLY `AXI_BURST_WRAP;
+                    rd_len_buff_r <= #`DLY `AXI_LEN_WIDTH'h3;
+                    rd_size_buff_r <= #`DLY `AXI_SIZE_4_BYTE;
+                end
+                3'b101: begin
+                    rd_addr_buff_r <= #`DLY `AXI_ADDR_WIDTH'h38;
+                    rd_burst_buff_r <= #`DLY `AXI_BURST_WRAP;
+                    rd_len_buff_r <= #`DLY `AXI_LEN_WIDTH'h7;
+                    rd_size_buff_r <= #`DLY `AXI_SIZE_4_BYTE;
+                end
+                default: begin
+                    rd_addr_buff_r <= #`DLY `AXI_ADDR_WIDTH'h40;
+                    rd_burst_buff_r <= #`DLY `AXI_BURST_INCR;
+                    rd_len_buff_r <= #`DLY `AXI_LEN_WIDTH'h3;
+                    rd_size_buff_r <= #`DLY `AXI_SIZE_4_BYTE;
+                end
+            endcase
         end
     end
 
@@ -120,17 +175,26 @@ module axi_mst(
     // ----------------------------------------------------------------
     always @(posedge clk or negedge rst_n) begin
         if(!rst_n) begin
-            rd_data_buff_r <= #DLY {`AXI_DATA_WIDTH{1'b0}};
-            rd_resp_buff_r <= #DLY {`AXI_RESP_WIDTH{1'b0}};
+            rd_resp_buff_r <= #`DLY {`AXI_RESP_WIDTH{1'b0}};
         end
         else if(rd_result_en) begin  // On read data result handshake
-            rd_data_buff_r <= #DLY axi_mst_rdata;   // Capture read data
-            rd_resp_buff_r <= #DLY axi_mst_rresp;   // Capture read response
+            rd_resp_buff_r <= #`DLY (axi_mst_rresp > rd_resp_buff_r) ? axi_mst_rresp : rd_resp_buff_r;   // merge is the worst resp
         end
     end
 
-    assign rd_result_err = (axi_mst_rresp != `AXI_RESP_OKAY); // Check for read response error
+    assign rd_result_err = (rd_resp_buff_r == `AXI_RESP_SLVERR) | (rd_resp_buff_r != `AXI_RESP_DECERR); // Check for read response error
 
+    always @(posedge clk or negedge rst_n) begin
+        integer i;
+        if(!rst_n) begin
+            for (i=0; i < `AXI_LEN_WIDTH; i=i+1) begin
+                rd_data_buff_r[i] <= #`DLY {`AXI_DATA_WIDTH{1'b0}};
+            end
+        end
+        else if(rd_result_en) begin
+            rd_data_buff_r[rd_data_cnt_r] <= # `DLY axi_mst_rdata;
+        end
+    end
     // ----------------------------------------------------------------
     // output signals
     // ----------------------------------------------------------------

@@ -30,4 +30,7 @@
 `define AXI_RESP_SLVERR     `AXI_RESP_WIDTH'b10
 `define AXI_RESP_DECERR     `AXI_RESP_WIDTH'b11
 
+`define BURST_CNT_WIDTH     $clog2(`AXI_LEN_WIDTH)  // Width of burst counter
+
+`define DLY               1
 `define SIM_PERIOD        20  // 20ns -> 50MHz

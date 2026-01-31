@@ -9,6 +9,18 @@ module tb_axi_basic();
                 .rst_n      ( rst_n   )
             );
 
+    wire error = u_axi_top.u_axi_slv.rd_data_err;
+
+    initial begin
+        forever begin
+            wait (error == 1);
+            rst_n = 0;
+            #(`SIM_PERIOD * 5);
+            $finish;
+        end
+    end
+
+    // clock generation
     initial begin
         #(`SIM_PERIOD/2);
         clk = 0;
