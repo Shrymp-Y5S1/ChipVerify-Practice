@@ -39,7 +39,7 @@ module axi_mst(
     reg [`AXI_BURST_WIDTH-1:0] rd_burst_buff_r;     // AXI Burst type buffer
 
     // Read Data buffers
-    reg [`AXI_DATA_WIDTH-1:0] rd_data_buff_r [`BURST_CNT_WIDTH-1:0];       // Read data buffer
+    reg [`AXI_DATA_WIDTH-1:0] rd_data_buff_r [`AXI_LEN_WIDTH-1:0];       // Read data buffer
     reg [`BURST_CNT_WIDTH-1:0] rd_data_cnt_r;       // Counter for burst data
     reg [`AXI_RESP_WIDTH-1:0] rd_resp_buff_r;       // Read response buffer
 

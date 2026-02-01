@@ -46,7 +46,7 @@ module tb_axi_basic();
 
     initial begin
         $fsdbDumpfile("tb_axi_basic.fsdb");
-        $fsdbDumpvars(0,tb_axi_basic);
+        $fsdbDumpvars(0,tb_axi_basic, "+all");
     end
 
 
