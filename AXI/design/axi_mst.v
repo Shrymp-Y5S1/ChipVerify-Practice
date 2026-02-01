@@ -40,8 +40,13 @@ module axi_mst #(
     reg rd_req_buff_r [OST_DEPTH-1:0];     // Request buffer register
     reg rd_comp_buff_r [OST_DEPTH-1:0];    // Completion buffer register
 
+    reg rd_clear_buff_r [OST_DEPTH-1:0];  // Clear buffer register
+
     // arrays -> registers
     reg [OST_DEPTH-1:0] rd_valid_bits;
+    reg [OST_DEPTH-1:0] rd_req_bits;
+    reg [OST_DEPTH-1:0] rd_set_bits;
+    reg [OST_DEPTH-1:0] rd_clear_bits;
     reg [OST_DEPTH-1:0] rd_req_bits;
 
     // Read pointers
@@ -73,38 +78,87 @@ module axi_mst #(
     // Pointer Logic
     // ----------------------------------------------------------------
     // Set Pointer
-    always @(posedge clk or negedge rst_n) begin
-        if(!rst_n) begin
-            rd_ptr_set_r <= #`DLY {OST_CNT_WIDTH{1'b0}};
-        end
-        else if(rd_buff_set) begin
-            rd_ptr_set_r <= #`DLY ((rd_ptr_set_r + 1'b1) < OST_DEPTH) ? (rd_ptr_set_r + 1'b1) : {OST_CNT_WIDTH{1'b0}};
-        end
-    end
+    // always @(posedge clk or negedge rst_n) begin
+    //     if(!rst_n) begin
+    //         rd_ptr_set_r <= #`DLY {OST_CNT_WIDTH{1'b0}};
+    //     end
+    //     else if(rd_buff_set) begin
+    //         rd_ptr_set_r <= #`DLY ((rd_ptr_set_r + 1'b1) < OST_DEPTH) ? (rd_ptr_set_r + 1'b1) : {OST_CNT_WIDTH{1'b0}};
+    //     end
+    // end
+
+    axi_arbit #(
+                  .ARB_WIDTH 	(OST_DEPTH  ))
+              u_rd_set_arbit(
+                  .clk       	(clk        ),
+                  .rst_n     	(rst_n      ),
+                  .queue_i   	(rd_set_bits    ),
+                  .sche_en   	(rd_buff_set    ),
+                  .pointer_o 	(rd_ptr_set_r  )
+              );
+
     // Clear Pointer
-    always @(posedge clk or negedge rst_n) begin
-        if(!rst_n) begin
-            rd_ptr_clr_r <= #`DLY {OST_CNT_WIDTH{1'b0}};
-        end
-        else if(rd_buff_clr) begin
-            rd_ptr_clr_r <= #`DLY ((rd_ptr_clr_r + 1'b1) < OST_DEPTH) ? (rd_ptr_clr_r + 1'b1) : {OST_CNT_WIDTH{1'b0}};
-        end
-    end
+    // always @(posedge clk or negedge rst_n) begin
+    //     if(!rst_n) begin
+    //         rd_ptr_clr_r <= #`DLY {OST_CNT_WIDTH{1'b0}};
+    //     end
+    //     else if(rd_buff_clr) begin
+    //         rd_ptr_clr_r <= #`DLY ((rd_ptr_clr_r + 1'b1) < OST_DEPTH) ? (rd_ptr_clr_r + 1'b1) : {OST_CNT_WIDTH{1'b0}};
+    //     end
+    // end
+
+    axi_arbit #(
+                  .ARB_WIDTH 	(OST_DEPTH  ))
+              u_rd_clr_arbit(
+                  .clk       	(clk        ),
+                  .rst_n     	(rst_n      ),
+                  .queue_i   	(rd_clear_bits    ),
+                  .sche_en   	(rd_buff_clr    ),
+                  .pointer_o 	(rd_ptr_clr_r  )
+              );
+
     // Request Pointer
-    always @(posedge clk or negedge rst_n) begin
-        if(!rst_n) begin
-            rd_ptr_req_r <= #`DLY {OST_CNT_WIDTH{1'b0}};
-        end
-        else if(rd_req_en) begin
-            rd_ptr_req_r <= #`DLY ((rd_ptr_req_r + 1'b1) < OST_DEPTH) ? (rd_ptr_req_r + 1'b1) : {OST_CNT_WIDTH{1'b0}};
-        end
-    end
+    // always @(posedge clk or negedge rst_n) begin
+    //     if(!rst_n) begin
+    //         rd_ptr_req_r <= #`DLY {OST_CNT_WIDTH{1'b0}};
+    //     end
+    //     else if(rd_req_en) begin
+    //         rd_ptr_req_r <= #`DLY ((rd_ptr_req_r + 1'b1) < OST_DEPTH) ? (rd_ptr_req_r + 1'b1) : {OST_CNT_WIDTH{1'b0}};
+    //     end
+    // end
+
+    axi_arbit #(
+                  .ARB_WIDTH 	(OST_DEPTH  ))
+              u_rd_req_arbit(
+                  .clk       	(clk        ),
+                  .rst_n     	(rst_n      ),
+                  .queue_i   	(rd_req_bits    ),
+                  .sche_en   	(rd_req_en    ),
+                  .pointer_o 	(rd_ptr_req_r  )
+              );
+
 
     // ----------------------------------------------------------------
     // Main Control
     // ----------------------------------------------------------------
     // array -> register conversion
-    always @(*) begin: Get_Valid_Bits
+    always @(*) begin: Get_Clear_Vectors
+        integer i;
+        rd_clear_bits = {OST_DEPTH{1'b0}};
+        for(i=0; i<OST_DEPTH; i=i+1) begin
+            rd_clear_bits[i] = rd_clear_buff_r[i];
+        end
+    end
+
+    always @(*) begin: Get_Req_Vectors
+        integer i;
+        rd_req_bits = {OST_DEPTH{1'b0}};
+        for(i=0; i<OST_DEPTH; i=i+1) begin
+            rd_req_bits[i] = rd_req_buff_r[i];
+        end
+    end
+
+    always @(*) begin: Get_Valid_Vectors
         integer i;
         rd_valid_bits = {OST_DEPTH{1'b0}};
         for (i=0;i < OST_DEPTH; i=i+1) begin
@@ -113,6 +167,8 @@ module axi_mst #(
     end
     assign rd_buff_full = &rd_valid_bits;                   // Buffer full if valid bits all set
     assign rd_buff_set = ~rd_buff_full;                     // Set buffer if not full
+    assign rd_set_bits = ~rd_valid_bits;   // Set bits are where valid bits are 0
+
     assign rd_buff_clr = rd_valid_buff_r[rd_ptr_clr_r] & ~rd_req_buff_r[rd_ptr_clr_r] & ~rd_comp_buff_r[rd_ptr_clr_r];      // Clear buffer if valid and no pending operations
     assign rd_req_en = axi_mst_arvalid & axi_mst_arready;   // Read address request handshake
     assign rd_result_en = axi_mst_rvalid & axi_mst_rready;  // Read data result handshake
@@ -160,6 +216,17 @@ module axi_mst #(
                     rd_comp_buff_r[i] <= #`DLY 1'b0;    // Clear completion buffer on last read data result handshake
                 end
             end
+
+            // FSM: Clear Buffer Register
+            always @(posedge clk or negedge rst_n) begin
+                if(!rst_n) begin
+                    rd_clear_buff_r[i] <= #`DLY 1'b0;
+                end
+                else begin
+                    rd_clear_buff_r[i] <= #`DLY rd_valid_buff_r[i] & ~rd_req_buff_r[i] & ~rd_comp_buff_r[i]; // Set clear buffer when valid but no pending operations
+                end
+            end
+
         end
     endgenerate
 

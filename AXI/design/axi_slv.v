@@ -25,6 +25,8 @@ module axi_slv #(
     localparam BURST_CNT_WIDTH = $clog2(MAX_BURST_LEN+1);   // Width of burst counter
     localparam REG_ADDR = 16'h0;                            // Default register address
     localparam OST_CNT_WIDTH = $clog2(OST_DEPTH + 1);       // Width of outstanding transaction counter
+    localparam MAX_GET_DATA_DLY = `AXI_DATA_GET_CNT_WIDTH'h18;      // Outstanding counter width
+
     // ----------------------------------------------------------------
     // internal registers
     // ----------------------------------------------------------------
@@ -37,8 +39,13 @@ module axi_slv #(
     reg rd_result_buff_r [OST_DEPTH-1:0];   // Result buffer register
     reg rd_comp_buff_r [OST_DEPTH-1:0];     // Completion buffer register
 
+    reg rd_clear_buff_r [OST_DEPTH-1:0];  // Clear buffer register
+
     // arrays -> registers
     reg [OST_DEPTH-1:0] rd_valid_bits;
+    reg [OST_DEPTH-1:0] rd_set_bits;
+    reg [OST_DEPTH-1:0] rd_clear_bits;
+    reg [OST_DEPTH-1:0] rd_result_bits;
 
     // Read pointers
     reg [OST_CNT_WIDTH-1:0] rd_ptr_set_r;
@@ -83,38 +90,84 @@ module axi_slv #(
     // ----------------------------------------------------------------
     // Pointer Logic
     // ----------------------------------------------------------------
-    always @(posedge clk or negedge rst_n) begin
-        if(!rst_n) begin
-            rd_ptr_set_r <= #`DLY {OST_CNT_WIDTH{1'b0}};
-        end
-        else if(rd_buff_set) begin
-            rd_ptr_set_r <= #`DLY ((rd_ptr_set_r + 1'b1) < OST_DEPTH) ? (rd_ptr_set_r + 1'b1) : {OST_CNT_WIDTH{1'b0}};
-        end
-    end
+    // always @(posedge clk or negedge rst_n) begin
+    //     if(!rst_n) begin
+    //         rd_ptr_set_r <= #`DLY {OST_CNT_WIDTH{1'b0}};
+    //     end
+    //     else if(rd_buff_set) begin
+    //         rd_ptr_set_r <= #`DLY ((rd_ptr_set_r + 1'b1) < OST_DEPTH) ? (rd_ptr_set_r + 1'b1) : {OST_CNT_WIDTH{1'b0}};
+    //     end
+    // end
 
-    always @(posedge clk or negedge rst_n) begin
-        if(!rst_n) begin
-            rd_ptr_clr_r <= #`DLY {OST_CNT_WIDTH{1'b0}};
-        end
-        else if(rd_buff_clr) begin
-            rd_ptr_clr_r <= #`DLY ((rd_ptr_clr_r + 1'b1) < OST_DEPTH) ? (rd_ptr_clr_r + 1'b1) : {OST_CNT_WIDTH{1'b0}};
-        end
-    end
+    axi_arbit #(
+                  .ARB_WIDTH 	(OST_DEPTH  ))
+              u_rd_set_arbit(
+                  .clk       	(clk        ),
+                  .rst_n     	(rst_n      ),
+                  .queue_i   	(rd_set_bits    ),
+                  .sche_en   	(rd_buff_set    ),
+                  .pointer_o 	(rd_ptr_set_r  )
+              );
 
-    always @(posedge clk or negedge rst_n) begin
-        if(!rst_n) begin
-            rd_ptr_result_r <= #`DLY {OST_CNT_WIDTH{1'b0}};
-        end
-        else if(rd_result_en & rd_result_last) begin
-            rd_ptr_result_r <= #`DLY ((rd_ptr_result_r + 1'b1) < OST_DEPTH) ? (rd_ptr_result_r + 1'b1) : {OST_CNT_WIDTH{1'b0}};
-        end
-    end
+    // always @(posedge clk or negedge rst_n) begin
+    //     if(!rst_n) begin
+    //         rd_ptr_clr_r <= #`DLY {OST_CNT_WIDTH{1'b0}};
+    //     end
+    //     else if(rd_buff_clr) begin
+    //         rd_ptr_clr_r <= #`DLY ((rd_ptr_clr_r + 1'b1) < OST_DEPTH) ? (rd_ptr_clr_r + 1'b1) : {OST_CNT_WIDTH{1'b0}};
+    //     end
+    // end
+
+    axi_arbit #(
+                  .ARB_WIDTH 	(OST_DEPTH  ))
+              u_rd_clr_arbit(
+                  .clk       	(clk        ),
+                  .rst_n     	(rst_n      ),
+                  .queue_i   	(rd_clear_bits    ),
+                  .sche_en   	(rd_buff_clr    ),
+                  .pointer_o 	(rd_ptr_clr_r  )
+              );
+
+    // always @(posedge clk or negedge rst_n) begin
+    //     if(!rst_n) begin
+    //         rd_ptr_result_r <= #`DLY {OST_CNT_WIDTH{1'b0}};
+    //     end
+    //     else if(rd_result_en & rd_result_last) begin
+    //         rd_ptr_result_r <= #`DLY ((rd_ptr_result_r + 1'b1) < OST_DEPTH) ? (rd_ptr_result_r + 1'b1) : {OST_CNT_WIDTH{1'b0}};
+    //     end
+    // end
+
+    axi_arbit #(
+                  .ARB_WIDTH 	(OST_DEPTH  ))
+              u_rd_result_arbit(
+                  .clk       	(clk        ),
+                  .rst_n     	(rst_n      ),
+                  .queue_i   	(rd_result_bits    ),
+                  .sche_en   	(rd_result_en    ),
+                  .pointer_o 	(rd_ptr_result_r  )
+              );
 
     // ----------------------------------------------------------------
     // Main Control
     // ----------------------------------------------------------------
     // array -> register conversion
-    always @(*) begin: Get_Valid_Bits
+    always @(*) begin: Get_Clear_Vectors
+        integer i;
+        rd_clear_bits = {OST_DEPTH{1'b0}};
+        for(i=0; i<OST_DEPTH; i=i+1) begin
+            rd_clear_bits[i] = rd_clear_buff_r[i];
+        end
+    end
+
+    always @(*) begin: Get_Result_Vectors
+        integer i;
+        rd_result_bits = {OST_DEPTH{1'b0}};
+        for (i=0;i < OST_DEPTH; i=i+1) begin
+            rd_result_bits[i] = rd_result_buff_r[i];
+        end
+    end
+
+    always @(*) begin: Get_Valid_Vectors
         integer i;
         rd_valid_bits = {OST_DEPTH{1'b0}};
         for (i=0;i < OST_DEPTH; i=i+1) begin
@@ -122,6 +175,8 @@ module axi_slv #(
         end
     end
     assign rd_buff_full = &rd_valid_bits;                       // Buffer full if valid bits all set
+    assign rd_set_bits = ~rd_valid_bits;   // Set bits are where valid bits are 0
+
     assign rd_buff_set = axi_slv_arvalid & axi_slv_arready;   // Read request handshake
     assign rd_buff_clr = rd_valid_buff_r[rd_ptr_clr_r] & ~rd_result_buff_r[rd_ptr_clr_r] & ~rd_comp_buff_r[rd_ptr_clr_r]; // Clear buffer if valid and no pending operations
 
@@ -175,6 +230,15 @@ module axi_slv #(
                 end
                 else if(rd_result_en && rd_result_last && (i == rd_ptr_result_r)) begin
                     rd_comp_buff_r[i] <= #`DLY 1'b0;
+                end
+            end
+
+            always @(posedge clk or negedge rst_n) begin
+                if(!rst_n) begin
+                    rd_clear_buff_r[i] <= #`DLY 1'b0;
+                end
+                else begin
+                    rd_clear_buff_r[i] <= #`DLY rd_valid_buff_r[i] & ~rd_result_buff_r[i] & ~rd_comp_buff_r[i];
                 end
             end
         end
@@ -336,7 +400,7 @@ module axi_slv #(
                 else if(rd_data_get[i] && (rd_curr_index_r[i] < rd_burst_len[i])) begin     // Continue fetching data if not last
                     rd_data_get_cnt[i] <= #`DLY `AXI_DATA_GET_CNT_WIDTH'h1;
                 end
-                else if(rd_data_get_cnt[i] == `AXI_DATA_GET_CNT_WIDTH'h12) begin
+                else if(rd_data_get_cnt[i] == MAX_GET_DATA_DLY) begin
                     rd_data_get_cnt[i] <= #`DLY `AXI_DATA_GET_CNT_WIDTH'h0;
                 end
                 else if(rd_data_get_cnt[i] > `AXI_DATA_GET_CNT_WIDTH'h0) begin
@@ -344,7 +408,7 @@ module axi_slv #(
                 end
             end
 
-            assign rd_data_get[i] = rd_valid_buff_r[i] & (rd_data_get_cnt[i] == `AXI_DATA_GET_CNT_WIDTH'h12);    // Data get condition
+            assign rd_data_get[i] = rd_valid_buff_r[i] & (rd_data_get_cnt[i] == MAX_GET_DATA_DLY - rd_id_buff_r[i]);    // Data get condition
             assign rd_data_err[i] = (rd_id_buff_r[i] == `AXI_ID_WIDTH'hF) & (rd_curr_index_r[i] == rd_burst_len[i]);    // Simulated data error when ID is max and last transfer
         end
     endgenerate
