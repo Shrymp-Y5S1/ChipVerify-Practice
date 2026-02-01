@@ -1,7 +1,7 @@
 `define AXI_ID_WIDTH        4
 `define AXI_ADDR_WIDTH      16
 `define AXI_DATA_WIDTH      32
-`define AXI_LEN_WIDTH       8
+`define AXI_LEN_WIDTH       16
 `define AXI_SIZE_WIDTH      3
 `define AXI_BURST_WIDTH     2
 `define AXI_CACHE_WIDTH     4
@@ -10,6 +10,7 @@
 `define AXI_REGION_WIDTH    4
 `define AXI_RESP_WIDTH      2
 
+`define AXI_DATA_GET_CNT_WIDTH  5
 
 `define AXI_BURST_FIXED     `AXI_BURST_WIDTH'b00
 `define AXI_BURST_INCR      `AXI_BURST_WIDTH'b01
@@ -29,8 +30,6 @@
 `define AXI_RESP_EXOKAY     `AXI_RESP_WIDTH'b01
 `define AXI_RESP_SLVERR     `AXI_RESP_WIDTH'b10
 `define AXI_RESP_DECERR     `AXI_RESP_WIDTH'b11
-
-`define BURST_CNT_WIDTH     $clog2(`AXI_LEN_WIDTH)  // Width of burst counter
 
 `define DLY               1
 `define SIM_PERIOD        20  // 20ns -> 50MHz

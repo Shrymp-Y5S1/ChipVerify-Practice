@@ -3,17 +3,17 @@ module tb_axi_basic();
 
     reg clk;
     reg rst_n;
+    wire done;
 
     axi_top u_axi_top (
                 .clk        ( clk     ),
-                .rst_n      ( rst_n   )
+                .rst_n      ( rst_n   ),
+                .req_finish ( done    )
             );
-
-    wire error = u_axi_top.u_axi_slv.rd_data_err;
 
     initial begin
         forever begin
-            wait (error == 1);
+            wait (done == 1);
             rst_n = 0;
             #(`SIM_PERIOD * 5);
             $finish;
@@ -40,8 +40,8 @@ module tb_axi_basic();
 
     initial begin
         reset;
-        #(`SIM_PERIOD * 1000);
-        $finish;
+// #(`SIM_PERIOD * 1000);
+// $finish;
     end
 
     initial begin
