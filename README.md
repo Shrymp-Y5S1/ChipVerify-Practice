@@ -7,11 +7,13 @@
 ### Projects (工程练习)
 
 - **APB UART** (基于 APB 总线的 UART): [APB_UART](APB_UART)
+- **AXI Basic** (AXI 基础模块): [AXI](AXI)
 
 ### Notes (学习笔记)
 
-- SystemVerilog 验证测试平台编写指南（第二版）: [Notes/HVL_SV.md](Notes/HVL_SV.md)
-- UVM实战: [Notes/UVM.md](Notes/UVM.md)
+- AXI4 Protocol: [Notes/AXI/AXI4.md](Notes/AXI/AXI4.md)
+- SystemVerilog 验证测试平台编写指南（第二版）: [Notes/SV/HVL_SV.md](Notes/SV/HVL_SV.md)
+- UVM实战: [Notes/UVM/UVM.md](Notes/UVM/UVM.md)
 
 ### Combinational (组合逻辑)
 
