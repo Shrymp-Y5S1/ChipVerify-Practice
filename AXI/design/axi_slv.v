@@ -1,5 +1,5 @@
 module axi_slv #(
-        parameter OST_DEPTH = 32
+        parameter OST_DEPTH = 16
     )(
         input clk,
         input rst_n,
@@ -38,19 +38,19 @@ module axi_slv #(
     reg rd_valid_buff_r [OST_DEPTH-1:0];    // Valid buffer register
     reg rd_result_buff_r [OST_DEPTH-1:0];   // Result buffer register
     reg rd_comp_buff_r [OST_DEPTH-1:0];     // Completion buffer register
-
     reg rd_clear_buff_r [OST_DEPTH-1:0];  // Clear buffer register
 
     // arrays -> registers
     reg [OST_DEPTH-1:0] rd_valid_bits;
-    reg [OST_DEPTH-1:0] rd_set_bits;
+    wire [OST_DEPTH-1:0] rd_set_bits;
     reg [OST_DEPTH-1:0] rd_clear_bits;
     reg [OST_DEPTH-1:0] rd_result_bits;
+    wire [OST_DEPTH-1:0] rd_order_bits;
 
     // Read pointers
-    reg [OST_CNT_WIDTH-1:0] rd_ptr_set_r;
-    reg [OST_CNT_WIDTH-1:0] rd_ptr_clr_r;
-    reg [OST_CNT_WIDTH-1:0] rd_ptr_result_r;
+    wire [OST_CNT_WIDTH-1:0] rd_ptr_set_r;
+    wire [OST_CNT_WIDTH-1:0] rd_ptr_clr_r;
+    wire [OST_CNT_WIDTH-1:0] rd_ptr_result_r;
 
     // Read Address buffers
     reg [`AXI_LEN_WIDTH-1:0] rd_curr_index_r [OST_DEPTH-1:0];       // Current read index
@@ -90,15 +90,6 @@ module axi_slv #(
     // ----------------------------------------------------------------
     // Pointer Logic
     // ----------------------------------------------------------------
-    // always @(posedge clk or negedge rst_n) begin
-    //     if(!rst_n) begin
-    //         rd_ptr_set_r <= #`DLY {OST_CNT_WIDTH{1'b0}};
-    //     end
-    //     else if(rd_buff_set) begin
-    //         rd_ptr_set_r <= #`DLY ((rd_ptr_set_r + 1'b1) < OST_DEPTH) ? (rd_ptr_set_r + 1'b1) : {OST_CNT_WIDTH{1'b0}};
-    //     end
-    // end
-
     axi_arbit #(
                   .ARB_WIDTH 	(OST_DEPTH  ))
               u_rd_set_arbit(
@@ -108,15 +99,6 @@ module axi_slv #(
                   .sche_en   	(rd_buff_set    ),
                   .pointer_o 	(rd_ptr_set_r  )
               );
-
-    // always @(posedge clk or negedge rst_n) begin
-    //     if(!rst_n) begin
-    //         rd_ptr_clr_r <= #`DLY {OST_CNT_WIDTH{1'b0}};
-    //     end
-    //     else if(rd_buff_clr) begin
-    //         rd_ptr_clr_r <= #`DLY ((rd_ptr_clr_r + 1'b1) < OST_DEPTH) ? (rd_ptr_clr_r + 1'b1) : {OST_CNT_WIDTH{1'b0}};
-    //     end
-    // end
 
     axi_arbit #(
                   .ARB_WIDTH 	(OST_DEPTH  ))
@@ -128,21 +110,12 @@ module axi_slv #(
                   .pointer_o 	(rd_ptr_clr_r  )
               );
 
-    // always @(posedge clk or negedge rst_n) begin
-    //     if(!rst_n) begin
-    //         rd_ptr_result_r <= #`DLY {OST_CNT_WIDTH{1'b0}};
-    //     end
-    //     else if(rd_result_en & rd_result_last) begin
-    //         rd_ptr_result_r <= #`DLY ((rd_ptr_result_r + 1'b1) < OST_DEPTH) ? (rd_ptr_result_r + 1'b1) : {OST_CNT_WIDTH{1'b0}};
-    //     end
-    // end
-
     axi_arbit #(
                   .ARB_WIDTH 	(OST_DEPTH  ))
               u_rd_result_arbit(
                   .clk       	(clk        ),
                   .rst_n     	(rst_n      ),
-                  .queue_i   	(rd_result_bits    ),
+                  .queue_i   	(rd_result_bits & rd_order_bits),
                   .sche_en   	(rd_result_en    ),
                   .pointer_o 	(rd_ptr_result_r  )
               );
@@ -245,10 +218,34 @@ module axi_slv #(
     endgenerate
 
     // ----------------------------------------------------------------
+    // RESP ID ORDER CONTROL
+    // ----------------------------------------------------------------
+    axi_idorder #(
+                    .OST_DEPTH 	(OST_DEPTH  ),
+                    .ID_WIDTH  	(`AXI_ID_WIDTH)   )
+                u_axi_idorder(
+                    .clk        	(clk         ),
+                    .rst_n      	(rst_n       ),
+                    .req_valid  	(axi_slv_arvalid   ),
+                    .req_ready  	(axi_slv_arready   ),
+                    .req_id     	(axi_slv_arid      ),
+                    .req_ptr    	(rd_ptr_set_r     ),
+                    .resp_valid 	(axi_slv_rvalid  ),
+                    .resp_ready 	(axi_slv_rready  ),
+                    .resp_id    	(axi_slv_rid     ),
+                    .resp_last  	(axi_slv_rlast   ),
+                    .resp_ptr   	(    ),
+                    .resp_bits  	(rd_order_bits   )
+                );
+
+
+    // ----------------------------------------------------------------
     // Read Address Buffer
     // ----------------------------------------------------------------
     generate
-        for(i=0; i<OST_DEPTH; i=i+1) begin: RD_ADDR_BUFFER_GEN
+        for(i=0;
+                i<OST_DEPTH;
+                i=i+1) begin: RD_ADDR_BUFFER_GEN
             always @(posedge clk or negedge rst_n) begin
                 if(!rst_n) begin
                     rd_id_buff_r[i] <= #`DLY {`AXI_ID_WIDTH{1'b0}};
@@ -272,8 +269,11 @@ module axi_slv #(
     // Burst Address Calculation
     // ----------------------------------------------------------------
     generate
-        for(i=0; i<OST_DEPTH; i=i+1) begin: BURST_CTRL
-            assign rd_start_addr[i] = rd_addr_buff_r[i];
+        for(i=0;
+                i<OST_DEPTH;
+                i=i+1) begin: BURST_CTRL
+            assign rd_start_addr[i]
+                   = rd_addr_buff_r[i];
             assign rd_number_bytes[i] = 1 << rd_size_buff_r[i];
             assign rd_burst_len[i] = rd_len_buff_r[i] + 1;
             assign rd_aligned_addr[i] = rd_start_addr[i] / rd_number_bytes[i] * rd_number_bytes[i]; // Aligned address calculation
@@ -343,7 +343,9 @@ module axi_slv #(
     // Read Data Buffer
     // ----------------------------------------------------------------
     generate
-        for (i=0; i<OST_DEPTH; i=i+1) begin: RD_DATA_BUFFER_GEN
+        for (i=0;
+                i<OST_DEPTH;
+                i=i+1) begin: RD_DATA_BUFFER_GEN
             // rd_resp_buff_r
             always @(posedge clk or negedge rst_n) begin
                 if(!rst_n) begin
@@ -389,7 +391,9 @@ module axi_slv #(
     // Simulate the data reading process
     // ----------------------------------------------------------------
     generate
-        for(i=0; i<OST_DEPTH; i=i+1) begin: RD_DATA_PROC_SIM
+        for(i=0;
+                i<OST_DEPTH;
+                i=i+1) begin: RD_DATA_PROC_SIM
             always @(posedge clk or negedge rst_n) begin
                 if(!rst_n) begin
                     rd_data_get_cnt[i] <= #`DLY `AXI_DATA_GET_CNT_WIDTH'h0;
@@ -420,7 +424,8 @@ module axi_slv #(
     assign axi_slv_arready = ~rd_buff_full;                 // Ready when buffer not full
     // AXI Slave Read Data Channel
     assign axi_slv_rid = rd_id_buff_r[rd_ptr_result_r];      // Read ID output
-    assign axi_slv_rdata = rd_data_buff_r[rd_ptr_result_r][rd_data_cnt_r[rd_ptr_result_r]*`AXI_DATA_WIDTH +: `AXI_DATA_WIDTH];      // Read data output
+    assign axi_slv_rdata = rd_data_buff_r[rd_ptr_result_r][rd_data_cnt_r[rd_ptr_result_r]*`AXI_DATA_WIDTH +:
+            `AXI_DATA_WIDTH];      // Read data output
     assign axi_slv_rresp = rd_resp_buff_r[rd_ptr_result_r];      // Read response output
     assign axi_slv_rvalid = rd_valid_buff_r[rd_ptr_result_r] & rd_result_buff_r[rd_ptr_result_r];   // Read valid signal
     assign axi_slv_rlast = axi_slv_rvalid & (rd_data_cnt_r[rd_ptr_result_r] == rd_len_buff_r[rd_ptr_result_r]);  // Last read flag: when valid and last index

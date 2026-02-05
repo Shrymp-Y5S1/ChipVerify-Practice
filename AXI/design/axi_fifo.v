@@ -13,7 +13,7 @@ module axi_fifo #(
         output full
     );
 
-    localparam PTR_WIDTH = $clog2(FIFO_DEPTH);
+    localparam PTR_WIDTH = $clog2(FIFO_DEPTH+1);
 
     reg [FIFO_DATA_WIDTH-1:0] fifo[FIFO_DEPTH-1:0];
     reg [PTR_WIDTH-1:0] wr_ptr, rd_ptr;

@@ -1,5 +1,5 @@
 module axi_mst #(
-        parameter OST_DEPTH = 32     // Outstanding transaction depth
+        parameter OST_DEPTH = 16     // Outstanding transaction depth
     )(
         input clk,
         input rst_n,
@@ -45,14 +45,14 @@ module axi_mst #(
     // arrays -> registers
     reg [OST_DEPTH-1:0] rd_valid_bits;
     reg [OST_DEPTH-1:0] rd_req_bits;
-    reg [OST_DEPTH-1:0] rd_set_bits;
+    wire [OST_DEPTH-1:0] rd_set_bits;
     reg [OST_DEPTH-1:0] rd_clear_bits;
-    reg [OST_DEPTH-1:0] rd_req_bits;
 
     // Read pointers
-    reg [OST_CNT_WIDTH-1:0] rd_ptr_set_r;
-    reg [OST_CNT_WIDTH-1:0] rd_ptr_clr_r;
-    reg [OST_CNT_WIDTH-1:0] rd_ptr_req_r;
+    wire [OST_CNT_WIDTH-1:0] rd_ptr_set_r;
+    wire [OST_CNT_WIDTH-1:0] rd_ptr_clr_r;
+    wire [OST_CNT_WIDTH-1:0] rd_ptr_req_r;
+    wire [OST_CNT_WIDTH-1:0] rd_ptr_result_r;
 
     // Read Address buffers
     reg [`AXI_ID_WIDTH-1:0] rd_id_buff_r [OST_DEPTH-1:0];           // AXI ID buffer
@@ -77,16 +77,6 @@ module axi_mst #(
     // ----------------------------------------------------------------
     // Pointer Logic
     // ----------------------------------------------------------------
-    // Set Pointer
-    // always @(posedge clk or negedge rst_n) begin
-    //     if(!rst_n) begin
-    //         rd_ptr_set_r <= #`DLY {OST_CNT_WIDTH{1'b0}};
-    //     end
-    //     else if(rd_buff_set) begin
-    //         rd_ptr_set_r <= #`DLY ((rd_ptr_set_r + 1'b1) < OST_DEPTH) ? (rd_ptr_set_r + 1'b1) : {OST_CNT_WIDTH{1'b0}};
-    //     end
-    // end
-
     axi_arbit #(
                   .ARB_WIDTH 	(OST_DEPTH  ))
               u_rd_set_arbit(
@@ -96,16 +86,6 @@ module axi_mst #(
                   .sche_en   	(rd_buff_set    ),
                   .pointer_o 	(rd_ptr_set_r  )
               );
-
-    // Clear Pointer
-    // always @(posedge clk or negedge rst_n) begin
-    //     if(!rst_n) begin
-    //         rd_ptr_clr_r <= #`DLY {OST_CNT_WIDTH{1'b0}};
-    //     end
-    //     else if(rd_buff_clr) begin
-    //         rd_ptr_clr_r <= #`DLY ((rd_ptr_clr_r + 1'b1) < OST_DEPTH) ? (rd_ptr_clr_r + 1'b1) : {OST_CNT_WIDTH{1'b0}};
-    //     end
-    // end
 
     axi_arbit #(
                   .ARB_WIDTH 	(OST_DEPTH  ))
@@ -117,16 +97,6 @@ module axi_mst #(
                   .pointer_o 	(rd_ptr_clr_r  )
               );
 
-    // Request Pointer
-    // always @(posedge clk or negedge rst_n) begin
-    //     if(!rst_n) begin
-    //         rd_ptr_req_r <= #`DLY {OST_CNT_WIDTH{1'b0}};
-    //     end
-    //     else if(rd_req_en) begin
-    //         rd_ptr_req_r <= #`DLY ((rd_ptr_req_r + 1'b1) < OST_DEPTH) ? (rd_ptr_req_r + 1'b1) : {OST_CNT_WIDTH{1'b0}};
-    //     end
-    // end
-
     axi_arbit #(
                   .ARB_WIDTH 	(OST_DEPTH  ))
               u_rd_req_arbit(
@@ -136,7 +106,6 @@ module axi_mst #(
                   .sche_en   	(rd_req_en    ),
                   .pointer_o 	(rd_ptr_req_r  )
               );
-
 
     // ----------------------------------------------------------------
     // Main Control
@@ -212,7 +181,7 @@ module axi_mst #(
                 else if(rd_buff_set && (i == rd_ptr_set_r)) begin
                     rd_comp_buff_r[i] <= #`DLY 1'b1;    // Set completion buffer
                 end
-                else if(rd_result_en & rd_result_last && (rd_result_id == rd_id_buff_r[i])) begin
+                else if(rd_result_en & rd_result_last && (rd_ptr_result_r == i)) begin
                     rd_comp_buff_r[i] <= #`DLY 1'b0;    // Clear completion buffer on last read data result handshake
                 end
             end
@@ -229,6 +198,27 @@ module axi_mst #(
 
         end
     endgenerate
+
+    // ----------------------------------------------------------------
+    // RESP ID ORDER CONTROL
+    // ----------------------------------------------------------------
+    axi_idorder #(
+                    .OST_DEPTH 	(OST_DEPTH  ),
+                    .ID_WIDTH  	(`AXI_ID_WIDTH))
+                u_axi_idorder(
+                    .clk        	(clk         ),
+                    .rst_n      	(rst_n       ),
+                    .req_valid  	(axi_mst_arvalid   ),
+                    .req_ready  	(axi_mst_arready   ),
+                    .req_id     	(axi_mst_arid      ),
+                    .req_ptr    	(rd_ptr_req_r     ),
+                    .resp_valid 	(axi_mst_rvalid  ),
+                    .resp_ready 	(axi_mst_rready  ),
+                    .resp_id    	(axi_mst_rid     ),
+                    .resp_last  	(axi_mst_rlast   ),
+                    .resp_ptr   	(rd_ptr_result_r    ),
+                    .resp_bits  	(   )
+                );
 
     // ----------------------------------------------------------------
     // AXI AR Payload Buffer
@@ -316,7 +306,7 @@ module axi_mst #(
                 if(!rst_n) begin
                     rd_resp_buff_r[i] <= #`DLY {`AXI_RESP_WIDTH{1'b0}};
                 end
-                else if(rd_result_en && (rd_result_id == rd_id_buff_r[i])) begin  // On read data result handshake
+                else if(rd_result_en && (rd_ptr_result_r == i)) begin  // On read data result handshake
                     rd_resp_buff_r[i] <= #`DLY (axi_mst_rresp > rd_resp_buff_r[i]) ? axi_mst_rresp : rd_resp_buff_r[i];   // merge is the worst resp
                 end
             end
@@ -331,7 +321,7 @@ module axi_mst #(
                 else if(rd_buff_set && (rd_ptr_set_r == i)) begin
                     rd_data_cnt_r[i] <= #`DLY {BURST_CNT_WIDTH{1'b0}};
                 end
-                else if(rd_result_en && (rd_result_id == rd_id_buff_r[i])) begin
+                else if(rd_result_en && (rd_ptr_result_r == i)) begin
                     rd_data_cnt_r[i] <= #`DLY rd_data_cnt_r[i] + 1'b1;
                 end
             end
@@ -343,7 +333,7 @@ module axi_mst #(
                 else if(rd_buff_set && (rd_ptr_set_r == i)) begin
                     rd_data_buff_r[i] <= #`DLY {`AXI_DATA_WIDTH*MAX_BURST_LEN{1'b0}};
                 end
-                else if(rd_result_en && (rd_result_id == rd_id_buff_r[i])) begin
+                else if(rd_result_en && (rd_ptr_result_r == i)) begin
                     rd_data_buff_r[i][rd_data_cnt_r[i]*`AXI_DATA_WIDTH +: `AXI_DATA_WIDTH] <= # `DLY axi_mst_rdata;
                 end
             end
