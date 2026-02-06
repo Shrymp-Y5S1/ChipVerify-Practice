@@ -21,26 +21,26 @@ module axi_top(
     wire [`AXI_USER_WIDTH-1:0] axi_mst_ruser;
     wire axi_mst_rready;
 
-    axi_mst u_axi_mst(
-                .clk             	(clk              ),
-                .rst_n           	(rst_n            ),
-                .req_finish         (req_finish       ),
-                .axi_mst_arid    	(axi_mst_arid     ),
-                .axi_mst_araddr  	(axi_mst_araddr   ),
-                .axi_mst_arlen   	(axi_mst_arlen    ),
-                .axi_mst_arsize  	(axi_mst_arsize   ),
-                .axi_mst_arburst 	(axi_mst_arburst  ),
-                .axi_mst_arvalid 	(axi_mst_arvalid  ),
-                .axi_mst_aruser     (axi_mst_aruser   ),
-                .axi_mst_arready 	(axi_mst_arready  ),
-                .axi_mst_rid   	    (axi_mst_rid      ),
-                .axi_mst_rdata   	(axi_mst_rdata    ),
-                .axi_mst_rresp   	(axi_mst_rresp    ),
-                .axi_mst_rlast   	(axi_mst_rlast    ),
-                .axi_mst_rvalid  	(axi_mst_rvalid   ),
-                .axi_mst_ruser      (axi_mst_ruser    ),
-                .axi_mst_rready  	(axi_mst_rready   )
-            );
+    axi_mst_rd u_axi_mst_rd(
+                   .clk             	(clk              ),
+                   .rst_n           	(rst_n            ),
+                   .req_finish         (req_finish       ),
+                   .axi_mst_arid    	(axi_mst_arid     ),
+                   .axi_mst_araddr  	(axi_mst_araddr   ),
+                   .axi_mst_arlen   	(axi_mst_arlen    ),
+                   .axi_mst_arsize  	(axi_mst_arsize   ),
+                   .axi_mst_arburst 	(axi_mst_arburst  ),
+                   .axi_mst_arvalid 	(axi_mst_arvalid  ),
+                   .axi_mst_aruser     (axi_mst_aruser   ),
+                   .axi_mst_arready 	(axi_mst_arready  ),
+                   .axi_mst_rid   	    (axi_mst_rid      ),
+                   .axi_mst_rdata   	(axi_mst_rdata    ),
+                   .axi_mst_rresp   	(axi_mst_rresp    ),
+                   .axi_mst_rlast   	(axi_mst_rlast    ),
+                   .axi_mst_rvalid  	(axi_mst_rvalid   ),
+                   .axi_mst_ruser      (axi_mst_ruser    ),
+                   .axi_mst_rready  	(axi_mst_rready   )
+               );
 
 
     // output declaration of module axi_slv
@@ -60,25 +60,25 @@ module axi_top(
     wire [`AXI_USER_WIDTH-1:0] axi_slv_ruser;
     wire axi_slv_rready;
 
-    axi_slv u_axi_slv(
-                .clk             	(clk              ),
-                .rst_n           	(rst_n            ),
-                .axi_slv_arid    	(axi_slv_arid     ),
-                .axi_slv_araddr  	(axi_slv_araddr   ),
-                .axi_slv_arlen   	(axi_slv_arlen    ),
-                .axi_slv_arsize  	(axi_slv_arsize   ),
-                .axi_slv_arburst 	(axi_slv_arburst  ),
-                .axi_slv_arvalid 	(axi_slv_arvalid  ),
-                .axi_slv_aruser     (axi_slv_aruser   ),
-                .axi_slv_arready 	(axi_slv_arready  ),
-                .axi_slv_rid        (axi_slv_rid      ),
-                .axi_slv_rdata   	(axi_slv_rdata    ),
-                .axi_slv_rresp   	(axi_slv_rresp    ),
-                .axi_slv_rlast   	(axi_slv_rlast    ),
-                .axi_slv_rvalid  	(axi_slv_rvalid   ),
-                .axi_slv_ruser      (axi_slv_ruser    ),
-                .axi_slv_rready  	(axi_slv_rready   )
-            );
+    axi_slv_rd u_axi_slv_rd(
+                   .clk             	(clk              ),
+                   .rst_n           	(rst_n            ),
+                   .axi_slv_arid    	(axi_slv_arid     ),
+                   .axi_slv_araddr  	(axi_slv_araddr   ),
+                   .axi_slv_arlen   	(axi_slv_arlen    ),
+                   .axi_slv_arsize  	(axi_slv_arsize   ),
+                   .axi_slv_arburst 	(axi_slv_arburst  ),
+                   .axi_slv_arvalid 	(axi_slv_arvalid  ),
+                   .axi_slv_aruser     (axi_slv_aruser   ),
+                   .axi_slv_arready 	(axi_slv_arready  ),
+                   .axi_slv_rid        (axi_slv_rid      ),
+                   .axi_slv_rdata   	(axi_slv_rdata    ),
+                   .axi_slv_rresp   	(axi_slv_rresp    ),
+                   .axi_slv_rlast   	(axi_slv_rlast    ),
+                   .axi_slv_rvalid  	(axi_slv_rvalid   ),
+                   .axi_slv_ruser      (axi_slv_ruser    ),
+                   .axi_slv_rready  	(axi_slv_rready   )
+               );
 
 
     // link master and slave

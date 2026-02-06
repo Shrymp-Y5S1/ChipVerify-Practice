@@ -1,4 +1,4 @@
-module axi_mst #(
+module axi_mst_rd #(
         parameter OST_DEPTH = 16     // Outstanding transaction depth
     )(
         input clk,
@@ -11,23 +11,23 @@ module axi_mst #(
         output [`AXI_LEN_WIDTH-1:0] axi_mst_arlen,
         output [`AXI_SIZE_WIDTH -1:0] axi_mst_arsize,
         output [`AXI_BURST_WIDTH-1:0] axi_mst_arburst,
-        output axi_mst_arvalid,
         output [`AXI_USER_WIDTH-1:0] axi_mst_aruser,
+        output axi_mst_arvalid,
         input axi_mst_arready,
 
         // AXI Master Read Data Channel
         input [`AXI_ID_WIDTH-1:0] axi_mst_rid,
         input [`AXI_DATA_WIDTH-1:0] axi_mst_rdata,
         input [`AXI_RESP_WIDTH-1:0] axi_mst_rresp,
+        input [`AXI_USER_WIDTH-1:0] axi_mst_ruser,
         input axi_mst_rlast,
         input axi_mst_rvalid,
-        input [`AXI_USER_WIDTH-1:0] axi_mst_ruser,
         output axi_mst_rready
     );
     localparam MAX_BURST_LEN = 8;                           // Maximum burst length
     localparam BURST_CNT_WIDTH = $clog2(MAX_BURST_LEN+1);   // Width of burst counter
     localparam OST_CNT_WIDTH = $clog2(OST_DEPTH + 1);       // Width of outstanding transaction counter
-    localparam MAX_REQ_NUM = 32;                            // Maximum number of requests
+    localparam MAX_REQ_NUM = 16;                            // Maximum number of requests
     localparam REQ_CNT_WIDTH = $clog2(MAX_REQ_NUM + 1);     // Width of request counter
 
     // ----------------------------------------------------------------
@@ -45,8 +45,8 @@ module axi_mst #(
 
     // arrays -> registers
     reg [OST_DEPTH-1:0] rd_valid_bits;
-    reg [OST_DEPTH-1:0] rd_req_bits;
     wire [OST_DEPTH-1:0] rd_set_bits;
+    reg [OST_DEPTH-1:0] rd_req_bits;
     reg [OST_DEPTH-1:0] rd_clear_bits;
 
     // Read pointers
@@ -62,6 +62,12 @@ module axi_mst #(
     reg [`AXI_SIZE_WIDTH-1:0] rd_size_buff_r [OST_DEPTH-1:0];       // AXI Size buffer
     reg [`AXI_BURST_WIDTH-1:0] rd_burst_buff_r [OST_DEPTH-1:0];     // AXI Burst type buffer
     reg [`AXI_USER_WIDTH-1:0] rd_user_buff_r [OST_DEPTH-1:0];     // AXI User buffer
+
+    reg [`AXI_ADDR_WIDTH-1:0] rd_addr_buff [OST_DEPTH-1:0];
+    reg [`AXI_LEN_WIDTH-1:0] rd_len_buff [OST_DEPTH-1:0];
+    reg [`AXI_SIZE_WIDTH-1:0] rd_size_buff [OST_DEPTH-1:0];
+    reg [`AXI_BURST_WIDTH-1:0] rd_burst_buff [OST_DEPTH-1:0];
+
     // Read Data buffers
     reg [`AXI_DATA_WIDTH*MAX_BURST_LEN-1:0] rd_data_buff_r [OST_DEPTH-1:0];     // Read data buffer
     reg [BURST_CNT_WIDTH-1:0] rd_data_cnt_r [OST_DEPTH-1:0];                    // Counter for burst data
@@ -111,7 +117,7 @@ module axi_mst #(
     // Main Control
     // ----------------------------------------------------------------
     // array -> register conversion
-    always @(*) begin: Get_Clear_Vectors
+    always @(*) begin: MST_RD_CLEAR_VEC
         integer i;
         rd_clear_bits = {OST_DEPTH{1'b0}};
         for(i=0; i<OST_DEPTH; i=i+1) begin
@@ -119,7 +125,7 @@ module axi_mst #(
         end
     end
 
-    always @(*) begin: Get_Req_Vectors
+    always @(*) begin: MST_RD_REQ_VEC
         integer i;
         rd_req_bits = {OST_DEPTH{1'b0}};
         for(i=0; i<OST_DEPTH; i=i+1) begin
@@ -127,7 +133,7 @@ module axi_mst #(
         end
     end
 
-    always @(*) begin: Get_Valid_Vectors
+    always @(*) begin: MST_RD_VALID_VEC
         integer i;
         rd_valid_bits = {OST_DEPTH{1'b0}};
         for (i=0;i < OST_DEPTH; i=i+1) begin
@@ -152,10 +158,10 @@ module axi_mst #(
                     rd_valid_buff_r[i] <= #`DLY 1'b0;
                 end
                 else if(rd_buff_set && (i == rd_ptr_set_r)) begin
-                    rd_valid_buff_r[i] <= #`DLY 1'b1; // Set valid buffer
+                    rd_valid_buff_r[i] <= #`DLY 1'b1;
                 end
                 else if(rd_buff_clr && (i == rd_ptr_clr_r)) begin
-                    rd_valid_buff_r[i] <= #`DLY 1'b0; // Clear valid buffer
+                    rd_valid_buff_r[i] <= #`DLY 1'b0;
                 end
             end
 
@@ -165,10 +171,10 @@ module axi_mst #(
                     rd_req_buff_r[i] <= #`DLY 1'b0;
                 end
                 else if(rd_buff_set && (i == rd_ptr_set_r)) begin
-                    rd_req_buff_r[i] <= #`DLY 1'b1; // Set request buffer
+                    rd_req_buff_r[i] <= #`DLY 1'b1;
                 end
                 else if(rd_req_en && (i == rd_ptr_req_r)) begin
-                    rd_req_buff_r[i] <= #`DLY 1'b0; // Clear request buffer on handshake
+                    rd_req_buff_r[i] <= #`DLY 1'b0;
                 end
             end
 
@@ -178,7 +184,7 @@ module axi_mst #(
                     rd_comp_buff_r[i] <= #`DLY 1'b0;
                 end
                 else if(rd_buff_set && (i == rd_ptr_set_r)) begin
-                    rd_comp_buff_r[i] <= #`DLY 1'b1;    // Set completion buffer
+                    rd_comp_buff_r[i] <= #`DLY 1'b1;
                 end
                 else if(rd_result_en & rd_result_last && (rd_ptr_result_r == i)) begin
                     rd_comp_buff_r[i] <= #`DLY 1'b0;    // Clear completion buffer on last read data result handshake
@@ -191,117 +197,70 @@ module axi_mst #(
                     rd_clear_buff_r[i] <= #`DLY 1'b0;
                 end
                 else begin
-                    rd_clear_buff_r[i] <= #`DLY rd_valid_buff_r[i] & ~rd_req_buff_r[i] & ~rd_comp_buff_r[i]; // Set clear buffer when valid but no pending operations
+                    rd_clear_buff_r[i] <= #`DLY rd_valid_buff_r[i] & ~rd_req_buff_r[i] & ~rd_comp_buff_r[i];
                 end
             end
 
-        end
-    endgenerate
+            // ----------------------------------------------------------------
+            // AXI AR Payload Buffer
+            // ----------------------------------------------------------------
+            always @(*) begin
+                case (rd_req_cnt_r[1:0])    // Use request counter to generate different address patterns for testing
+                    2'b00: begin    // INCR, LEN=4
+                        rd_addr_buff[i] = `AXI_ADDR_WIDTH'h0;
+                        rd_len_buff[i] = `AXI_LEN_WIDTH'h3;
+                        rd_size_buff[i] = `AXI_SIZE_4_BYTE;
+                        rd_burst_buff[i] = `AXI_BURST_INCR;
+                    end
+                    2'b01: begin    // INCR, LEN=4
+                        rd_addr_buff[i] = rd_req_cnt_r * `AXI_ADDR_WIDTH'h10;
+                        rd_len_buff[i] = `AXI_LEN_WIDTH'h3;
+                        rd_size_buff[i] = `AXI_SIZE_4_BYTE;
+                        rd_burst_buff[i] = `AXI_BURST_INCR;
+                    end
+                    2'b10: begin    // WRAP, LEN=4
+                        rd_addr_buff[i] = `AXI_ADDR_WIDTH'h24;
+                        rd_len_buff[i] = `AXI_LEN_WIDTH'h3;
+                        rd_size_buff[i] = `AXI_SIZE_4_BYTE;
+                        rd_burst_buff[i] = `AXI_BURST_WRAP;
+                    end
+                    2'b11: begin    // FIXED, LEN=4
+                        rd_addr_buff[i] = `AXI_ADDR_WIDTH'h30;
+                        rd_len_buff[i] = `AXI_LEN_WIDTH'h3;
+                        rd_size_buff[i] = `AXI_SIZE_4_BYTE;
+                        rd_burst_buff[i] = `AXI_BURST_FIXED;
+                    end
+                    default: begin    // INCR, LEN=4
+                        rd_addr_buff[i] = `AXI_ADDR_WIDTH'h80;
+                        rd_len_buff[i] = `AXI_LEN_WIDTH'h3;
+                        rd_size_buff[i] = `AXI_SIZE_4_BYTE;
+                        rd_burst_buff[i] = `AXI_BURST_INCR;
+                    end
+                endcase
+            end
 
-    // ----------------------------------------------------------------
-    // RESP ID ORDER CONTROL
-    // ----------------------------------------------------------------
-    axi_idorder #(
-                    .OST_DEPTH 	(OST_DEPTH  ),
-                    .ID_WIDTH  	(`AXI_ID_WIDTH))
-                u_axi_idorder(
-                    .clk        	(clk         ),
-                    .rst_n      	(rst_n       ),
-                    .req_valid  	(axi_mst_arvalid   ),
-                    .req_ready  	(axi_mst_arready   ),
-                    .req_id     	(axi_mst_arid      ),
-                    .req_ptr    	(rd_ptr_req_r     ),
-                    .resp_valid 	(axi_mst_rvalid  ),
-                    .resp_ready 	(axi_mst_rready  ),
-                    .resp_id    	(axi_mst_rid     ),
-                    .resp_last  	(axi_mst_rlast   ),
-                    .resp_ptr   	(rd_ptr_result_r    ),
-                    .resp_bits  	(   )
-                );
-
-    // ----------------------------------------------------------------
-    // AXI AR Payload Buffer
-    // ----------------------------------------------------------------
-    generate
-        for (i=0; i<OST_DEPTH; i=i+1) begin: AR_PAYLOAD_BUFFER
             always @(posedge clk or negedge rst_n) begin
                 if(!rst_n) begin
-                    rd_id_buff_r[i] <= #`DLY {`AXI_ID_WIDTH{1'b0}};
-                    rd_addr_buff_r[i] <= #`DLY {`AXI_ADDR_WIDTH{1'b0}};
-                    rd_len_buff_r[i] <= #`DLY {`AXI_LEN_WIDTH{1'b0}};
+                    rd_id_buff_r[i] <= #`DLY `AXI_ID_WIDTH'h0;
+                    rd_addr_buff_r[i] <= #`DLY `AXI_ADDR_WIDTH'h0;
+                    rd_len_buff_r[i] <= #`DLY `AXI_LEN_WIDTH'h0;
                     rd_size_buff_r[i] <= #`DLY `AXI_SIZE_1_BYTE;
                     rd_burst_buff_r[i] <= #`DLY `AXI_BURST_INCR;
-                    rd_user_buff_r[i] <=#`DLY {`AXI_USER_WIDTH{1'b0}};
+                    rd_user_buff_r[i] <=#`DLY `AXI_USER_WIDTH'h0;
                 end
-                else if(rd_buff_set && (rd_ptr_set_r == i)) begin    // On buffer set
-                    rd_id_buff_r[i] <= #`DLY rd_req_cnt_r[`AXI_ID_WIDTH-1:0];   // Use request counter as AXI ID
-                    rd_user_buff_r[i] <= #`DLY rd_req_cnt_r;
-                    case (i[2:0])   // use different address patterns for different buffers
-                        3'b000: begin   // INCR, LEN=4
-                            rd_addr_buff_r[i] <= #`DLY `AXI_ADDR_WIDTH'h0;
-                            rd_burst_buff_r[i] <= #`DLY `AXI_BURST_INCR;
-                            rd_len_buff_r[i] <= #`DLY `AXI_LEN_WIDTH'h3;
-                            rd_size_buff_r[i] <= #`DLY `AXI_SIZE_4_BYTE;
-                        end
-                        3'b001: begin   // INCR, LEN=4
-                            rd_addr_buff_r[i] <= #`DLY `AXI_ADDR_WIDTH'h10;
-                            rd_burst_buff_r[i] <= #`DLY `AXI_BURST_INCR;
-                            rd_len_buff_r[i] <= #`DLY `AXI_LEN_WIDTH'h3;
-                            rd_size_buff_r[i] <= #`DLY `AXI_SIZE_4_BYTE;
-                        end
-                        3'b010: begin   // INCR, LEN=4
-                            rd_addr_buff_r[i] <= #`DLY `AXI_ADDR_WIDTH'h20;
-                            rd_burst_buff_r[i] <= #`DLY `AXI_BURST_INCR;
-                            rd_len_buff_r[i] <= #`DLY `AXI_LEN_WIDTH'h3;
-                            rd_size_buff_r[i] <= #`DLY `AXI_SIZE_4_BYTE;
-                        end
-                        3'b011: begin   // FIXED, LEN=4
-                            rd_addr_buff_r[i] <= #`DLY `AXI_ADDR_WIDTH'h30;
-                            rd_burst_buff_r[i] <= #`DLY `AXI_BURST_FIXED;
-                            rd_len_buff_r[i] <= #`DLY `AXI_LEN_WIDTH'h3;
-                            rd_size_buff_r[i] <= #`DLY `AXI_SIZE_4_BYTE;
-                        end
-                        3'b100: begin   // WRAP, LEN=4
-                            rd_addr_buff_r[i] <= #`DLY `AXI_ADDR_WIDTH'h34;
-                            rd_burst_buff_r[i] <= #`DLY `AXI_BURST_WRAP;
-                            rd_len_buff_r[i] <= #`DLY `AXI_LEN_WIDTH'h3;
-                            rd_size_buff_r[i] <= #`DLY `AXI_SIZE_4_BYTE;
-                        end
-                        3'b101: begin   // WRAP, LEN=4
-                            rd_addr_buff_r[i] <= #`DLY `AXI_ADDR_WIDTH'h38;
-                            rd_burst_buff_r[i] <= #`DLY `AXI_BURST_WRAP;
-                            rd_len_buff_r[i] <= #`DLY `AXI_LEN_WIDTH'h3;
-                            rd_size_buff_r[i] <= #`DLY `AXI_SIZE_4_BYTE;
-                        end
-                        3'b110: begin   // FIXED, LEN=4
-                            rd_addr_buff_r[i] <= #`DLY `AXI_ADDR_WIDTH'h40;
-                            rd_burst_buff_r[i] <= #`DLY `AXI_BURST_FIXED;
-                            rd_len_buff_r[i] <= #`DLY `AXI_LEN_WIDTH'h3;
-                            rd_size_buff_r[i] <= #`DLY `AXI_SIZE_4_BYTE;
-                        end
-                        3'b111: begin   // INCR, LEN=4
-                            rd_addr_buff_r[i] <= #`DLY rd_addr_buff_r[i] + `AXI_ADDR_WIDTH'h20;
-                            rd_burst_buff_r[i] <= #`DLY `AXI_BURST_INCR;
-                            rd_len_buff_r[i] <= #`DLY `AXI_LEN_WIDTH'h3;
-                            rd_size_buff_r[i] <= #`DLY `AXI_SIZE_4_BYTE;
-                        end
-                        default: begin  // INCR, LEN=4
-                            rd_addr_buff_r[i] <= #`DLY `AXI_ADDR_WIDTH'h80;
-                            rd_burst_buff_r[i] <= #`DLY `AXI_BURST_INCR;
-                            rd_len_buff_r[i] <= #`DLY `AXI_LEN_WIDTH'h3;
-                            rd_size_buff_r[i] <= #`DLY `AXI_SIZE_4_BYTE;
-                        end
-                    endcase
+                else if(rd_buff_set && (rd_ptr_set_r == i)) begin
+                    rd_id_buff_r[i] <= #`DLY rd_req_cnt_r[`AXI_ID_WIDTH-1:0];
+                    rd_addr_buff_r[i] <= #`DLY rd_addr_buff[i];
+                    rd_len_buff_r[i] <= #`DLY rd_len_buff[i];
+                    rd_size_buff_r[i] <= #`DLY rd_size_buff[i];
+                    rd_burst_buff_r[i] <= #`DLY rd_burst_buff[i];
+                    rd_user_buff_r[i] <=#`DLY rd_req_cnt_r;
                 end
             end
-        end
-    endgenerate
 
-    // ----------------------------------------------------------------
-    // AXI R Payload Buffer
-    // ----------------------------------------------------------------
-    generate
-        for(i=0; i<OST_DEPTH; i=i+1) begin
+            // ----------------------------------------------------------------
+            // AXI R Payload Buffer
+            // ----------------------------------------------------------------
             // Read Response Buffer
             always @(posedge clk or negedge rst_n) begin
                 if(!rst_n) begin
@@ -342,7 +301,26 @@ module axi_mst #(
     endgenerate
 
     // ----------------------------------------------------------------
-    // Request Finish Logic [REQ_CNT_WIDTH-1:0] rd_req_cnt_r;
+    // RESP ID ORDER CONTROL
+    // ----------------------------------------------------------------
+    axi_order #(
+                  .OST_DEPTH 	(OST_DEPTH  ),
+                  .ID_WIDTH  	(`AXI_ID_WIDTH))
+              u_axi_idorder(
+                  .clk        	(clk         ),
+                  .rst_n      	(rst_n       ),
+                  .push  	        (axi_mst_arvalid & axi_mst_arready   ),
+                  .push_id     	(axi_mst_arid      ),
+                  .push_ptr    	(rd_ptr_req_r     ),
+                  .pop  	        (axi_mst_rvalid & axi_mst_rready  ),
+                  .pop_id    	    (axi_mst_rid     ),
+                  .pop_last  	    (axi_mst_rlast   ),
+                  .order_ptr   	(rd_ptr_result_r    ),
+                  .order_bits  	(   )
+              );
+
+    // ----------------------------------------------------------------
+    // Request Finish Logic
     // ----------------------------------------------------------------
     always @(posedge clk or negedge rst_n) begin
         if(!rst_n) begin
@@ -356,15 +334,7 @@ module axi_mst #(
     // ----------------------------------------------------------------
     // output signals
     // ----------------------------------------------------------------
-    assign req_finish = (rd_req_cnt_r == MAX_REQ_NUM); // Request finish when reaching max request number
-
-    always @(*) begin
-        integer i;
-        rd_req_bits = {OST_DEPTH{1'b0}};
-        for (i=0; i<OST_DEPTH; i=i+1) begin
-            rd_req_bits[i] = rd_req_buff_r[i];
-        end
-    end
+    assign req_finish = (rd_req_cnt_r == {REQ_CNT_WIDTH{1'b1}}); // Request finish when reaching max request number
 
     // AXI Master Read Address Channel
     assign axi_mst_arid = rd_id_buff_r [rd_ptr_req_r];

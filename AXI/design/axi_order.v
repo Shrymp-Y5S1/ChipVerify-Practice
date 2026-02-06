@@ -1,22 +1,20 @@
-module axi_idorder #(
+module axi_order #(
         parameter OST_DEPTH = 16,
         parameter ID_WIDTH = 4
     )(
         input clk,
         input rst_n,
 
-        input req_valid,
-        input req_ready,
-        input [ID_WIDTH-1:0] req_id,
-        input [$clog2(OST_DEPTH+1)-1:0] req_ptr,
+        input push,
+        input [ID_WIDTH-1:0] push_id,
+        input [$clog2(OST_DEPTH+1)-1:0] push_ptr,
 
-        input resp_valid,
-        input resp_ready,
-        input [ID_WIDTH-1:0] resp_id,
-        input resp_last,
+        input pop,
+        input [ID_WIDTH-1:0] pop_id,
+        input pop_last,
 
-        output [$clog2(OST_DEPTH+1)-1:0] resp_ptr,
-        output reg [OST_DEPTH-1:0] resp_bits
+        output [$clog2(OST_DEPTH+1)-1:0] order_ptr,
+        output reg [OST_DEPTH-1:0] order_bits
     );
 
     localparam ID_NUM = 1 << ID_WIDTH;
@@ -60,12 +58,12 @@ module axi_idorder #(
             fifo_rd[j] = 1'b0;
             fifo_data_in[j] = {PTR_WIDTH{1'b0}};
         end
-        if(req_valid && req_ready) begin
-            fifo_wr[req_id] = 1'b1;
-            fifo_data_in[req_id] = req_ptr;
+        if(push) begin
+            fifo_wr[push_id] = 1'b1;
+            fifo_data_in[push_id] = push_ptr;
         end
-        if(resp_valid && resp_ready && ~fifo_empty[resp_id] && resp_last) begin
-            fifo_rd[resp_id] = 1'b1;
+        if(pop && ~fifo_empty[pop_id] && pop_last) begin
+            fifo_rd[pop_id] = 1'b1;
         end
     end
 
@@ -79,14 +77,14 @@ module axi_idorder #(
     // ----------------------------------------------------------------
     // Output signals
     // ----------------------------------------------------------------
-    assign resp_ptr = fifo_data_out[resp_id];
+    assign order_ptr = fifo_data_out[pop_id];
 
     // all
     always @(*) begin
         integer k;
-        resp_bits = {OST_DEPTH{1'b0}};
+        order_bits = {OST_DEPTH{1'b0}};
         for (k = 0; k < ID_NUM; k = k + 1) begin
-            resp_bits = resp_bits | fifo_bitmap[k];
+            order_bits = order_bits | fifo_bitmap[k];
         end
     end
 
