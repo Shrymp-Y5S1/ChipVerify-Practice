@@ -117,7 +117,7 @@ The AXI protocol defines three burst types:
 >
 > > [!note]
 > >
-> > The **WSTRB [n: 0]** signals when HIGH, specify the byte lanes of the data bus that contain valid information. There is one write strobe for each 8 bits of the write data bus, therefore **WSTRB [n]** corresponds to **WDATA [(8n)+7: (8n)]**.
+> > The **WSTRB [n: 0]** signals when HIGH, specify the byte lanes of the data bus that contain valid information. There is **one write strobe for each 8 bits** of the write data bus, therefore **WSTRB [n]** corresponds to **WDATA [(8n)+7: (8n)]**.
 > >
 > > A Manager must ensure that the write strobes are ==HIGH only for byte lanes that contain valid data==.
 > >
@@ -210,6 +210,32 @@ This burst type is used for **cache line accesses**.
 
 ### Handshake pairs (VALID, READY, LAST)
 
+- **Write address channel**
+
+  The Manager can assert the **AWVALID** signal only when it drives valid address and control information. When asserted, **AWVALID** must remain asserted until the rising clock edge after the Subordinate asserts **AWREADY**. 
+
+  The default state of **AWREADY** can be either HIGH or LOW. This specification ==recommends a default state of HIGH==. When **AWREADY** is HIGH, the Subordinate must be able to accept any valid address that is presented to it.
+
+  > [!note]
+  >
+  >  This specification does ==not recommend a default **AWREADY** state of LOW==, because it forces the transfer to take at least two cycles, one to assert **AWVALID** and another to assert **AWREADY**.
+
+- **Write data channel**
+
+  During a write burst, the Manager can assert the **WVALID** signal only when it drives valid write data. When asserted, **WVALID** must remain asserted until the rising clock edge after the Subordinate asserts **WREADY**. 
+
+  The default state of **WREADY** can be HIGH, but only if the Subordinate can always accept write data in a single cycle. 
+
+  The Manager must assert the **WLAST** signal while it is driving the final write transfer in the burst.
+
+  This specification ==recommends that **WDATA** is driven to zero for inactive byte lanes==. 
+
+- **Write response channel**
+
+  The Subordinate can assert the **BVALID** signal only when it drives a valid write response. When asserted, **BVALID** must remain asserted until the rising clock edge after the Manager asserts **BREADY**. 
+
+  The default state of **BREADY** can be HIGH, but only if the Manager can always accept a write response in a single cycle. 
+
 - **Read address channel**
 
   The Manager can assert the **ARVALID** signal only when it drives valid address and control information. When asserted, ==**ARVALID** must remain asserted until the rising clock edge after the Subordinate asserts the **ARREADY** signal==.
@@ -248,6 +274,16 @@ For read transactions, the response information from the Subordinate **is signal
 - **DECERR**: Decode error. Generated, typically by an interconnect component, to indicate that there is **no**  **Subordinate at the transaction address**. See *DECERR, decode error* on page A3-60.
 
 <img src="./AXI4.assets/resp.png" alt="resp" style="zoom:67%;" />
+
+> [!caution]
+>
+> For a ==write transaction==, ==a single response is signaled for the entire burst==, and not for each data transfer within the 
+>
+> burst.
+>
+> In a read transaction, the Subordinate can signal different responses for different transfers in a burst. For example, in a burst of 16 read transfers the Subordinate might return an OKAY response for 15 of the transfers and a SLVERR response for one of the transfers. 
+>
+> The protocol specifies that ==the required number of data transfers must be performed, even if an error is reported==. For example, if a read of eight transfers is requested from a Subordinate but the Subordinate has an error condition, the Subordinate must perform eight data transfers, each with an error response. The remainder of the burst is not canceled if the Subordinate gives a single error response.
 
 ## Handshake process
 
