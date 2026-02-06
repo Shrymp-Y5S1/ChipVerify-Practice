@@ -9,6 +9,7 @@
 `define AXI_QOS_WIDTH       4
 `define AXI_REGION_WIDTH    4
 `define AXI_RESP_WIDTH      2
+`define AXI_USER_WIDTH      5
 
 `define AXI_DATA_GET_CNT_WIDTH  5
 

@@ -12,6 +12,7 @@ module axi_mst #(
         output [`AXI_SIZE_WIDTH -1:0] axi_mst_arsize,
         output [`AXI_BURST_WIDTH-1:0] axi_mst_arburst,
         output axi_mst_arvalid,
+        output [`AXI_USER_WIDTH-1:0] axi_mst_aruser,
         input axi_mst_arready,
 
         // AXI Master Read Data Channel
@@ -20,6 +21,7 @@ module axi_mst #(
         input [`AXI_RESP_WIDTH-1:0] axi_mst_rresp,
         input axi_mst_rlast,
         input axi_mst_rvalid,
+        input [`AXI_USER_WIDTH-1:0] axi_mst_ruser,
         output axi_mst_rready
     );
     localparam MAX_BURST_LEN = 8;                          // Maximum burst length
@@ -39,7 +41,6 @@ module axi_mst #(
     reg rd_valid_buff_r [OST_DEPTH-1:0];   // Valid buffer register
     reg rd_req_buff_r [OST_DEPTH-1:0];     // Request buffer register
     reg rd_comp_buff_r [OST_DEPTH-1:0];    // Completion buffer register
-
     reg rd_clear_buff_r [OST_DEPTH-1:0];  // Clear buffer register
 
     // arrays -> registers
@@ -60,7 +61,7 @@ module axi_mst #(
     reg [`AXI_LEN_WIDTH-1:0] rd_len_buff_r [OST_DEPTH-1:0];         // AXI Length buffer
     reg [`AXI_SIZE_WIDTH-1:0] rd_size_buff_r [OST_DEPTH-1:0];       // AXI Size buffer
     reg [`AXI_BURST_WIDTH-1:0] rd_burst_buff_r [OST_DEPTH-1:0];     // AXI Burst type buffer
-
+    reg [`AXI_USER_WIDTH-1:0] rd_user_buff_r [OST_DEPTH-1:0];     // AXI User buffer
     // Read Data buffers
     reg [`AXI_DATA_WIDTH*MAX_BURST_LEN-1:0] rd_data_buff_r [OST_DEPTH-1:0];     // Read data buffer
     reg [BURST_CNT_WIDTH-1:0] rd_data_cnt_r [OST_DEPTH-1:0];                    // Counter for burst data
@@ -232,9 +233,11 @@ module axi_mst #(
                     rd_len_buff_r[i] <= #`DLY {`AXI_LEN_WIDTH{1'b0}};
                     rd_size_buff_r[i] <= #`DLY `AXI_SIZE_1_BYTE;
                     rd_burst_buff_r[i] <= #`DLY `AXI_BURST_INCR;
+                    rd_user_buff_r[i] <=#`DLY {`AXI_USER_WIDTH{1'b0}};
                 end
                 else if(rd_buff_set && (rd_ptr_set_r == i)) begin    // On buffer set
-                    rd_id_buff_r[i] <= #`DLY i;   // Set ID as buffer index
+                    rd_id_buff_r[i] <= #`DLY rd_req_cnt_r[`AXI_ID_WIDTH-1:0];   // Use request counter as AXI ID
+                    rd_user_buff_r[i] <= #`DLY rd_req_cnt_r;
                     case (i[2:0])   // use different address patterns for different buffers
                         3'b000: begin   // INCR, LEN=4
                             rd_addr_buff_r[i] <= #`DLY `AXI_ADDR_WIDTH'h0;
@@ -242,16 +245,16 @@ module axi_mst #(
                             rd_len_buff_r[i] <= #`DLY `AXI_LEN_WIDTH'h3;
                             rd_size_buff_r[i] <= #`DLY `AXI_SIZE_4_BYTE;
                         end
-                        3'b001: begin   // INCR, LEN=8
+                        3'b001: begin   // INCR, LEN=4
                             rd_addr_buff_r[i] <= #`DLY `AXI_ADDR_WIDTH'h10;
                             rd_burst_buff_r[i] <= #`DLY `AXI_BURST_INCR;
-                            rd_len_buff_r[i] <= #`DLY `AXI_LEN_WIDTH'h7;
+                            rd_len_buff_r[i] <= #`DLY `AXI_LEN_WIDTH'h3;
                             rd_size_buff_r[i] <= #`DLY `AXI_SIZE_4_BYTE;
                         end
-                        3'b010: begin   // INCR, LEN=8
+                        3'b010: begin   // INCR, LEN=4
                             rd_addr_buff_r[i] <= #`DLY `AXI_ADDR_WIDTH'h20;
                             rd_burst_buff_r[i] <= #`DLY `AXI_BURST_INCR;
-                            rd_len_buff_r[i] <= #`DLY `AXI_LEN_WIDTH'h7;
+                            rd_len_buff_r[i] <= #`DLY `AXI_LEN_WIDTH'h3;
                             rd_size_buff_r[i] <= #`DLY `AXI_SIZE_4_BYTE;
                         end
                         3'b011: begin   // FIXED, LEN=4
@@ -266,16 +269,16 @@ module axi_mst #(
                             rd_len_buff_r[i] <= #`DLY `AXI_LEN_WIDTH'h3;
                             rd_size_buff_r[i] <= #`DLY `AXI_SIZE_4_BYTE;
                         end
-                        3'b101: begin   // WRAP, LEN=8
+                        3'b101: begin   // WRAP, LEN=4
                             rd_addr_buff_r[i] <= #`DLY `AXI_ADDR_WIDTH'h38;
                             rd_burst_buff_r[i] <= #`DLY `AXI_BURST_WRAP;
-                            rd_len_buff_r[i] <= #`DLY `AXI_LEN_WIDTH'h7;
+                            rd_len_buff_r[i] <= #`DLY `AXI_LEN_WIDTH'h3;
                             rd_size_buff_r[i] <= #`DLY `AXI_SIZE_4_BYTE;
                         end
-                        3'b110: begin   // FIXED, LEN=8
+                        3'b110: begin   // FIXED, LEN=4
                             rd_addr_buff_r[i] <= #`DLY `AXI_ADDR_WIDTH'h40;
                             rd_burst_buff_r[i] <= #`DLY `AXI_BURST_FIXED;
-                            rd_len_buff_r[i] <= #`DLY `AXI_LEN_WIDTH'h7;
+                            rd_len_buff_r[i] <= #`DLY `AXI_LEN_WIDTH'h3;
                             rd_size_buff_r[i] <= #`DLY `AXI_SIZE_4_BYTE;
                         end
                         3'b111: begin   // INCR, LEN=4
@@ -347,7 +350,7 @@ module axi_mst #(
         if(!rst_n) begin
             rd_req_cnt_r <= #`DLY {REQ_CNT_WIDTH{1'b0}};
         end
-        else if(rd_result_en && rd_result_last) begin
+        else if(rd_buff_set) begin
             rd_req_cnt_r <= #`DLY rd_req_cnt_r + 1'b1;
         end
     end
@@ -372,6 +375,7 @@ module axi_mst #(
     assign axi_mst_arsize = rd_size_buff_r [rd_ptr_req_r];
     assign axi_mst_arburst = rd_burst_buff_r [rd_ptr_req_r];
     assign axi_mst_arvalid = |rd_req_bits;
+    assign axi_mst_aruser = rd_user_buff_r [rd_ptr_req_r];
     // AXI Master Read Data Channel
     assign axi_mst_rready = 1'b1;
 

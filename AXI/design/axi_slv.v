@@ -11,6 +11,7 @@ module axi_slv #(
         input [`AXI_SIZE_WIDTH -1:0] axi_slv_arsize,
         input [`AXI_BURST_WIDTH-1:0] axi_slv_arburst,
         input axi_slv_arvalid,
+        input [`AXI_USER_WIDTH-1:0] axi_slv_aruser,
         output axi_slv_arready,
 
         // AXI Master Read Data Channel
@@ -19,6 +20,7 @@ module axi_slv #(
         output [`AXI_RESP_WIDTH-1:0] axi_slv_rresp,
         output axi_slv_rlast,
         output axi_slv_rvalid,
+        output [`AXI_USER_WIDTH-1:0] axi_slv_ruser,
         input axi_slv_rready
     );
     localparam MAX_BURST_LEN = 8;                          // Maximum burst length
@@ -59,6 +61,7 @@ module axi_slv #(
     reg [`AXI_LEN_WIDTH-1:0] rd_len_buff_r [OST_DEPTH-1:0];         // AXI Length buffer
     reg [`AXI_SIZE_WIDTH-1:0] rd_size_buff_r [OST_DEPTH-1:0];       // AXI Size buffer
     reg [`AXI_BURST_WIDTH-1:0] rd_burst_buff_r [OST_DEPTH-1:0];     // AXI Burst type buffer
+    reg [`AXI_USER_WIDTH-1:0] rd_user_buff_r [OST_DEPTH-1:0];     // AXI User buffer
 
     // Read Data buffers
     reg [MAX_BURST_LEN-1:0] rd_data_vld_r [OST_DEPTH-1:0];              // Read data valid flag buffer
@@ -253,6 +256,7 @@ module axi_slv #(
                     rd_len_buff_r[i] <= #`DLY {`AXI_LEN_WIDTH{1'b0}};
                     rd_size_buff_r[i] <= #`DLY {`AXI_SIZE_WIDTH{1'b0}};
                     rd_burst_buff_r[i] <= #`DLY {`AXI_BURST_WIDTH{1'b0}};
+                    rd_user_buff_r[i] <= #`DLY {`AXI_USER_WIDTH{1'b0}};
                 end
                 else if(rd_buff_set && (i == rd_ptr_set_r)) begin  // On read request handshake
                     rd_id_buff_r[i] <= #`DLY axi_slv_arid;
@@ -260,6 +264,7 @@ module axi_slv #(
                     rd_len_buff_r[i] <= #`DLY axi_slv_arlen;
                     rd_size_buff_r[i] <= #`DLY axi_slv_arsize;
                     rd_burst_buff_r[i] <= #`DLY axi_slv_arburst;
+                    rd_user_buff_r[i] <= #`DLY axi_slv_aruser;
                 end
             end
         end
@@ -429,5 +434,6 @@ module axi_slv #(
     assign axi_slv_rresp = rd_resp_buff_r[rd_ptr_result_r];      // Read response output
     assign axi_slv_rvalid = rd_valid_buff_r[rd_ptr_result_r] & rd_result_buff_r[rd_ptr_result_r];   // Read valid signal
     assign axi_slv_rlast = axi_slv_rvalid & (rd_data_cnt_r[rd_ptr_result_r] == rd_len_buff_r[rd_ptr_result_r]);  // Last read flag: when valid and last index
+    assign axi_slv_ruser = rd_user_buff_r [rd_ptr_result_r];    // Read user output
 
 endmodule
