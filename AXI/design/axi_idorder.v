@@ -38,7 +38,7 @@ module axi_idorder #(
         for(i = 0; i < ID_NUM; i = i+1) begin: GEN_ID_ORDER_FIFO
             axi_fifo #(
                          .FIFO_DATA_WIDTH 	(PTR_WIDTH),
-                         .FIFO_DEPTH      	(OST_DEPTH  ))
+                         .FIFO_DEPTH      	(OST_DEPTH  ))  // worst case: same ID with all outstanding transactions
                      u_axi_fifo(
                          .clk      	(clk       ),
                          .rst_n    	(rst_n     ),

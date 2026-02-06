@@ -31,14 +31,14 @@ module axi_top(
                 .axi_mst_arsize  	(axi_mst_arsize   ),
                 .axi_mst_arburst 	(axi_mst_arburst  ),
                 .axi_mst_arvalid 	(axi_mst_arvalid  ),
-                .axi_mst_aruser     (axi_mst_aruser         ),
+                .axi_mst_aruser     (axi_mst_aruser   ),
                 .axi_mst_arready 	(axi_mst_arready  ),
                 .axi_mst_rid   	    (axi_mst_rid      ),
                 .axi_mst_rdata   	(axi_mst_rdata    ),
                 .axi_mst_rresp   	(axi_mst_rresp    ),
                 .axi_mst_rlast   	(axi_mst_rlast    ),
                 .axi_mst_rvalid  	(axi_mst_rvalid   ),
-                .axi_mst_ruser      (axi_mst_ruser           ),
+                .axi_mst_ruser      (axi_mst_ruser    ),
                 .axi_mst_rready  	(axi_mst_rready   )
             );
 
@@ -69,14 +69,14 @@ module axi_top(
                 .axi_slv_arsize  	(axi_slv_arsize   ),
                 .axi_slv_arburst 	(axi_slv_arburst  ),
                 .axi_slv_arvalid 	(axi_slv_arvalid  ),
-                .axi_slv_aruser     (axi_slv_aruser         ),
+                .axi_slv_aruser     (axi_slv_aruser   ),
                 .axi_slv_arready 	(axi_slv_arready  ),
                 .axi_slv_rid        (axi_slv_rid      ),
                 .axi_slv_rdata   	(axi_slv_rdata    ),
                 .axi_slv_rresp   	(axi_slv_rresp    ),
                 .axi_slv_rlast   	(axi_slv_rlast    ),
                 .axi_slv_rvalid  	(axi_slv_rvalid   ),
-                .axi_slv_ruser      (axi_slv_ruser           ),
+                .axi_slv_ruser      (axi_slv_ruser    ),
                 .axi_slv_rready  	(axi_slv_rready   )
             );
 

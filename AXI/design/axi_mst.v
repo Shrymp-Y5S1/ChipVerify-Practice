@@ -24,7 +24,7 @@ module axi_mst #(
         input [`AXI_USER_WIDTH-1:0] axi_mst_ruser,
         output axi_mst_rready
     );
-    localparam MAX_BURST_LEN = 8;                          // Maximum burst length
+    localparam MAX_BURST_LEN = 8;                           // Maximum burst length
     localparam BURST_CNT_WIDTH = $clog2(MAX_BURST_LEN+1);   // Width of burst counter
     localparam OST_CNT_WIDTH = $clog2(OST_DEPTH + 1);       // Width of outstanding transaction counter
     localparam MAX_REQ_NUM = 32;                            // Maximum number of requests
@@ -70,7 +70,6 @@ module axi_mst #(
 
     wire rd_req_en;                         // Read request handshake(valid & ready)
     wire rd_result_en;                      // Read result handshake(valid & ready)
-    wire [`AXI_ID_WIDTH-1:0] rd_result_id;  // Read result ID
     wire rd_result_last;                    // Last read result flag
 
     reg [REQ_CNT_WIDTH-1:0] rd_req_cnt_r;   // Request counter
@@ -142,7 +141,6 @@ module axi_mst #(
     assign rd_buff_clr = rd_valid_buff_r[rd_ptr_clr_r] & ~rd_req_buff_r[rd_ptr_clr_r] & ~rd_comp_buff_r[rd_ptr_clr_r];      // Clear buffer if valid and no pending operations
     assign rd_req_en = axi_mst_arvalid & axi_mst_arready;   // Read address request handshake
     assign rd_result_en = axi_mst_rvalid & axi_mst_rready;  // Read data result handshake
-    assign rd_result_id = axi_mst_rid;                      // Read result ID
     assign rd_result_last = axi_mst_rlast;                  // Last read result
 
     genvar i;

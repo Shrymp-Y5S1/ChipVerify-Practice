@@ -11,20 +11,20 @@ module axi_arbit #(
 
     reg [ARB_WIDTH-1:0] req_power;  // Request priority register
 
-    // 1. Apply priority to requests
+    // 优先级筛选
     wire [ARB_WIDTH-1:0] req_after_power = queue_i & req_power;
 
-    // 2. find last granted request to set priority masks
-    // 把最低位有效请求的左边所有位都置为 1
+    // 查找最低有效位
     wire [ARB_WIDTH-1:0] old_mask = {req_after_power[ARB_WIDTH-2:0] | old_mask[ARB_WIDTH-2:0], 1'b0};  // Old mask for priority
     wire [ARB_WIDTH-1:0] new_mask = {queue_i[ARB_WIDTH-2:0] | new_mask[ARB_WIDTH-2:0], 1'b0};   // New mask for priority
     wire old_grant_work = |req_after_power;    // Check if there is any request after applying priority
-    // 提取最低位的请求
+
+    // 仲裁判决
     wire [ARB_WIDTH-1:0] old_grant = (~old_mask) & req_after_power;   // Grant based on old priority
     wire [ARB_WIDTH-1:0] new_grant = (~new_mask) & queue_i;   // Grant based on new priority
-
     wire [ARB_WIDTH-1:0] grant = old_grant_work ? old_grant : new_grant;
 
+    // 更新优先级
     function automatic [$clog2(ARB_WIDTH)-1:0] onehot_to_index;
         input [ARB_WIDTH-1:0] onehot;
         integer i;
