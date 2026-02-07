@@ -54,7 +54,7 @@ module axi_slv_rd #(
     wire [OST_CNT_WIDTH-1:0] rd_ptr_clr;
     wire [OST_CNT_WIDTH-1:0] rd_ptr_result;
 
-    // Read Address buffers
+    // Read request buffers
     reg [`AXI_LEN_WIDTH-1:0] rd_curr_index_r [OST_DEPTH-1:0];       // Current read index
     reg [`AXI_ID_WIDTH-1:0] rd_id_buff_r [OST_DEPTH-1:0];           // AXI ID buffer
     reg [`AXI_ADDR_WIDTH-1:0] rd_addr_buff_r [OST_DEPTH-1:0];       // AXI Address buffer
@@ -72,7 +72,7 @@ module axi_slv_rd #(
 
     wire rd_dec_miss;       // Address decode miss flag
     wire rd_result_en;      // Read data result handshake(valid & ready)
-    wire rd_result_id;      // Read result ID
+    wire [`AXI_ID_WIDTH-1:0] rd_result_id;      // Read result ID
     wire rd_result_last;    // Last read result flag
     wire rd_data_get [OST_DEPTH-1:0];      // Data fetch condition (counter max)
     reg [`AXI_DATA_GET_CNT_WIDTH-1:0] rd_data_get_cnt [OST_DEPTH-1:0];   // Data fetch counter condition

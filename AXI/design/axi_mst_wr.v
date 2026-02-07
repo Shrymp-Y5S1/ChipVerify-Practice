@@ -3,7 +3,8 @@ module axi_mst_wr #(
     )(
         input clk,
         input rst_n,
-        output req_finish,    // Request finish signal
+        input wr_en,
+        output wr_req_finish,    // Request finish signal
 
         // AXI Master Write Address Channel
         output [`AXI_ID_WIDTH-1:0] axi_mst_awid,
@@ -68,7 +69,7 @@ module axi_mst_wr #(
     reg [OST_CNT_WIDTH-1:0] wr_ptr_set_r;   // start 启动后续流程
 
     // Write request buffers
-    reg [$clog2(`AXI_LEN_WIDTH)-1:0] wr_curr_index_r;// 我觉得只需要log2的位宽即可
+    reg [`AXI_LEN_WIDTH-1:0] wr_curr_index_r;
     reg [`AXI_ID_WIDTH-1:0] wr_id_buff_r [OST_DEPTH-1:0];
     reg [`AXI_ADDR_WIDTH-1:0] wr_addr_buff_r [OST_DEPTH-1:0];
     reg [`AXI_LEN_WIDTH-1:0] wr_len_buff_r [OST_DEPTH-1:0];
@@ -100,7 +101,6 @@ module axi_mst_wr #(
     // Write response
     wire wr_result_en;
     wire [`AXI_ID_WIDTH-1:0] wr_result_id;
-    wire wr_result_last;
 
     // address calculation registers
     reg [`AXI_ADDR_WIDTH-1:0] wr_curr_addr_r [OST_DEPTH-1:0];
@@ -189,7 +189,7 @@ module axi_mst_wr #(
     end
 
     assign wr_buff_full = &wr_valid_bits;
-    assign wr_buff_set = ~wr_buff_full;
+    assign wr_buff_set = ~wr_buff_full & wr_en;
     assign wr_set_bits = ~wr_valid_bits;
 
     assign wr_buff_clr = wr_valid_buff_r[wr_ptr_clr] & ~wr_req_buff_r[wr_ptr_clr] & ~wr_comp_buff_r[wr_ptr_clr];
@@ -207,7 +207,7 @@ module axi_mst_wr #(
                 if(!rst_n) begin
                     wr_valid_buff_r[i] <= #`DLY 1'b0;
                 end
-                else if(wr_buff_set && (i == wr_ptr_set_r)) begin
+                else if(wr_buff_set && (i == wr_ptr_set)) begin
                     wr_valid_buff_r[i] <= #`DLY 1'b1;
                 end
                 else if(wr_buff_clr && (i == wr_ptr_clr)) begin
@@ -220,7 +220,7 @@ module axi_mst_wr #(
                 if(!rst_n) begin
                     wr_req_buff_r[i] <= #`DLY 1'b0;
                 end
-                else if(wr_buff_set && (i == wr_ptr_set_r)) begin
+                else if(wr_buff_set && (i == wr_ptr_set)) begin
                     wr_req_buff_r[i] <= #`DLY 1'b1;
                 end
                 else if(wr_req_en && (i == wr_ptr_req)) begin
@@ -237,7 +237,8 @@ module axi_mst_wr #(
                     if(wr_buff_set && (i == wr_ptr_set)) begin
                         wr_data_ready_r[i] <= #`DLY 1'b1;
                     end
-                    else if(wr_data_en && ~wr_data_last && (wr_ptr_data == i)) begin
+                    else if(wr_data_en && ~wr_data_last && (wr_ptr_data == i) && wr_data_vld_r[i][wr_data_cnt_r[i]+1]) begin
+                        // 当前正在传数据，且下一拍数据也已经就绪
                         wr_data_ready_r[i] <= #`DLY 1'b1;
                     end
                     else if(wr_data_get[i]) begin
@@ -257,7 +258,7 @@ module axi_mst_wr #(
                 else if(wr_buff_set && (i == wr_ptr_set)) begin
                     wr_comp_buff_r[i] <= #`DLY 1'b1;
                 end
-                else if(wr_result_en & wr_result_last && (wr_ptr_result == i)) begin
+                else if(wr_result_en & (wr_ptr_result == i)) begin
                     wr_comp_buff_r[i] <= #`DLY 1'b0;
                 end
             end
@@ -319,7 +320,7 @@ module axi_mst_wr #(
                     wr_burst_buff_r[i] <= #`DLY `AXI_BURST_INCR;
                     wr_user_buff_r[i] <=#`DLY `AXI_USER_WIDTH'h0;
                 end
-                else if(wr_buff_set && (wr_ptr_set_r == i)) begin
+                else if(wr_buff_set && (wr_ptr_set == i)) begin
                     wr_id_buff_r[i] <= #`DLY wr_req_cnt_r[`AXI_ID_WIDTH-1:0];
                     wr_addr_buff_r[i] <= #`DLY wr_addr_buff[i];
                     wr_len_buff_r[i] <= #`DLY wr_len_buff[i];
@@ -468,7 +469,7 @@ module axi_mst_wr #(
                 end
             end
 
-            assign wr_data_get[i] = wr_valid_buff_r[i] & (wr_data_get_cnt[i] == MAX_GET_DATA_DLY - wr_id_buff_r[i]);    // Data get condition
+            assign wr_data_get[i] = wr_valid_buff_r[i] & (wr_data_get_cnt[i] == (MAX_GET_DATA_DLY - wr_id_buff_r[i]));    // Data get condition
             assign wr_data_err[i] = (wr_id_buff_r[i] == `AXI_ID_WIDTH'hF) & (wr_curr_index_r[i] == wr_burst_len[i]);    // Simulated data error when ID is max and last transfer
 
         end
@@ -477,9 +478,9 @@ module axi_mst_wr #(
     // ----------------------------------------------------------------
     // Write Order Control
     // ----------------------------------------------------------------
-    // AW channel doesn't carry ID, use constant
+    // AW channel doesn't carry ID, have to maintain order separately to match with W channel
     axi_order #(
-                  .ORD_DEPTH 	(OST_DEPTH  ),
+                  .OST_DEPTH 	(OST_DEPTH  ),
                   .ID_WIDTH  	(`AXI_ID_WIDTH))
               u_axi_wr_order(
                   .clk        	(clk         ),
@@ -509,7 +510,7 @@ module axi_mst_wr #(
                   .pop  	    (axi_mst_bvalid & axi_mst_bready  ),
                   .pop_id    	(axi_mst_bid     ),
                   .pop_last  	(1'b1   ),  // bresp only once
-                  .order_ptr   	(wr_ptr_result_r    ),
+                  .order_ptr   	(wr_ptr_result    ),
                   .order_bits  	(   )
               );
 
@@ -529,7 +530,7 @@ module axi_mst_wr #(
     // Output signal assignments
     // ----------------------------------------------------------------
 
-    assign req_finish = (wr_req_cnt_r == {REQ_CNT_WIDTH{1'b1}}); // Request finish when reaching max request number
+    assign wr_req_finish = (wr_req_cnt_r == MAX_REQ_NUM); // Request finish when reaching max request number
 
     // AXI Master Write Address Channel
     assign axi_mst_awid = wr_id_buff_r [wr_ptr_req];
@@ -544,9 +545,9 @@ module axi_mst_wr #(
     assign axi_mst_wdata = wr_data_buff_r [wr_ptr_data][(wr_data_cnt_r[wr_ptr_data]*`AXI_DATA_WIDTH) +: `AXI_DATA_WIDTH];
     assign axi_mst_wstrb = wr_strb_buff_r [wr_ptr_data][(wr_data_cnt_r[wr_ptr_data]*(`AXI_DATA_WIDTH >> 3)) +: (`AXI_DATA_WIDTH >> 3)];
     assign axi_mst_wuser = wr_user_buff_r [wr_ptr_data];
-    // assign axi_mst_wlast = (wr_data_cnt_r[wr_ptr_data] == wr_burst_len[wr_ptr_data] - 1) && (wr_data_vld_r[wr_ptr_data][wr_data_cnt_r[wr_ptr_data]]); // Last when data count reaches burst length - 1 and data valid
-    assign axi_mst_wlast = axi_mst_wvalid & (wr_data_cnt_r[wr_ptr_data] == wr_burst_len[wr_ptr_data] - 1); // Last when data count reaches burst length - 1
-    assign axi_mst_wvalid = wr_data_ready_r[wr_ptr_data] & wr_data_vld_r[wr_ptr_data][wr_data_cnt_r[wr_ptr_data]]; // Valid when data ready and data valid
+    assign axi_mst_wlast = axi_mst_wvalid & (wr_data_cnt_r[wr_ptr_data] == wr_len_buff_r[wr_ptr_data] - 1); // Last when data count reaches burst length - 1
+    assign axi_mst_wvalid = wr_valid_buff_r[wr_ptr_data] & wr_data_ready_r[wr_ptr_data]; // Valid when data ready and data valid
+
 
     // AXI Master Write Response Channel
     assign axi_mst_bready = 1'b1;

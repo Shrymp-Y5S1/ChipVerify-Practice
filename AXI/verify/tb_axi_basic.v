@@ -3,47 +3,69 @@ module tb_axi_basic();
 
     reg clk;
     reg rst_n;
-    wire done;
+    reg rd_en;
+    reg wr_en;
+    wire rd_req_finish;
+    wire wr_req_finish;
 
     axi_top u_axi_top (
                 .clk        ( clk     ),
                 .rst_n      ( rst_n   ),
-                .req_finish ( done    )
+                .rd_en      ( rd_en   ),
+                .wr_en      ( wr_en   ),
+                .rd_req_finish ( rd_req_finish    ),
+                .wr_req_finish ( wr_req_finish    )
             );
-
-    initial begin
-        forever begin
-            wait (done == 1);
-            rst_n = 0;
-            #(`SIM_PERIOD * 5);
-            $finish;
-        end
-    end
-
-    // clock generation
-    initial begin
-        #(`SIM_PERIOD/2);
-        clk = 0;
-        forever
-            #(`SIM_PERIOD/2) clk = ~clk;
-    end
 
     // reset task
     task reset;
         begin
+            rd_en = 0;
+            wr_en = 0;
             rst_n = 0;
             #(`SIM_PERIOD);
-            # 0.1;
             rst_n = 1;
+            #(`SIM_PERIOD*5+`DLY);
+            rd_en = 1;
+            #(`SIM_PERIOD*5+`DLY);
+            wr_en = 1;
         end
     endtask
 
+    // initial
     initial begin
+        #(`SIM_PERIOD/2);
+        clk = 1'b0;
         reset;
-// #(`SIM_PERIOD * 1000);
-// $finish;
     end
 
+    // clock generation
+    always #(`SIM_PERIOD/2) clk = ~clk;
+
+    // read
+    always begin
+        wait (rd_req_finish == 1);
+        #(`SIM_PERIOD * 3);
+        rd_en = 0;
+    end
+
+    // write
+    always begin
+        wait (wr_req_finish == 1);
+        #(`SIM_PERIOD * 3);
+        wr_en = 0;
+        #(`SIM_PERIOD * 2000 + `DLY);
+        $finish;
+    end
+
+    // timeout
+    initial begin
+        # (`SIM_PERIOD * 10000);
+        $display("Time Out");
+        $finish;
+    end
+
+    // fsdb dump
     initial begin
         $fsdbDumpfile("tb_axi_basic.fsdb");
         $fsdbDumpvars(0,tb_axi_basic, "+all");

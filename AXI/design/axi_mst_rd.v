@@ -3,7 +3,8 @@ module axi_mst_rd #(
     )(
         input clk,
         input rst_n,
-        output req_finish,    // Request finish signal
+        input rd_en,
+        output rd_req_finish,    // Request finish signal
 
         // AXI Master Read Address Channel
         output [`AXI_ID_WIDTH-1:0] axi_mst_arid,
@@ -141,7 +142,7 @@ module axi_mst_rd #(
         end
     end
     assign rd_buff_full = &rd_valid_bits;                   // Buffer full if valid bits all set
-    assign rd_buff_set = ~rd_buff_full;                     // Set buffer if not full
+    assign rd_buff_set = ~rd_buff_full & rd_en;                     // Set buffer if not full
     assign rd_set_bits = ~rd_valid_bits;   // Set bits are where valid bits are 0
 
     assign rd_buff_clr = rd_valid_buff_r[rd_ptr_clr_r] & ~rd_req_buff_r[rd_ptr_clr_r] & ~rd_comp_buff_r[rd_ptr_clr_r];      // Clear buffer if valid and no pending operations
@@ -309,12 +310,12 @@ module axi_mst_rd #(
               u_axi_idorder(
                   .clk        	(clk         ),
                   .rst_n      	(rst_n       ),
-                  .push  	        (axi_mst_arvalid & axi_mst_arready   ),
+                  .push  	    (axi_mst_arvalid & axi_mst_arready   ),
                   .push_id     	(axi_mst_arid      ),
                   .push_ptr    	(rd_ptr_req_r     ),
-                  .pop  	        (axi_mst_rvalid & axi_mst_rready  ),
-                  .pop_id    	    (axi_mst_rid     ),
-                  .pop_last  	    (axi_mst_rlast   ),
+                  .pop  	    (axi_mst_rvalid & axi_mst_rready  ),
+                  .pop_id    	(axi_mst_rid     ),
+                  .pop_last  	(axi_mst_rlast   ),
                   .order_ptr   	(rd_ptr_result_r    ),
                   .order_bits  	(   )
               );
@@ -334,7 +335,7 @@ module axi_mst_rd #(
     // ----------------------------------------------------------------
     // output signals
     // ----------------------------------------------------------------
-    assign req_finish = (rd_req_cnt_r == {REQ_CNT_WIDTH{1'b1}}); // Request finish when reaching max request number
+    assign rd_req_finish = (rd_req_cnt_r == MAX_REQ_NUM); // Request finish when reaching max request number
 
     // AXI Master Read Address Channel
     assign axi_mst_arid = rd_id_buff_r [rd_ptr_req_r];
