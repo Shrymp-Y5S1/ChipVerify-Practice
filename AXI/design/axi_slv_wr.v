@@ -402,8 +402,8 @@ module axi_slv_wr #(
                   .pop  	    (axi_slv_wvalid & axi_slv_wready  ),
                   .pop_id    	(`AXI_ID_WIDTH'h0      ),
                   .pop_last  	(axi_slv_wlast  ),
-                  .order_ptr   	(    ),
-                  .order_bits  	(wr_ptr_data    )
+                  .order_ptr   	(wr_ptr_data    ),
+                  .order_bits  	(    )
               );
 
     // -----------------------------------------------------------------
