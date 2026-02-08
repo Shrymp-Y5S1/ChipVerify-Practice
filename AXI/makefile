@@ -29,7 +29,7 @@ PASS_STR = "MATCHES: [1-9]\|TEST PASSED"
 FAIL_STR = "UVM_ERROR : [1-9]\|UVM_FATAL : [1-9]\|MISMATCH"
 
 # 覆盖率相关设置
-CM_NAME  = $(TEST)
+CM_NAME  = $(TEST)_$(SEED)
 CM_DIR   = $(COV_DB_DIR)/$(TEST).vdb
 CM_OPTS  = -cm line+cond+fsm+tgl+branch+assert
 CM_HIER  = -cm_hier ./flist/cm.hier
