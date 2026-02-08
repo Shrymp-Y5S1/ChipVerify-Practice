@@ -3,7 +3,9 @@ module axi_mst_rd #(
     )(
         input clk,
         input rst_n,
+        // VCS coverage off
         input rd_en,
+        // VCS coverage on
 
         // User Request Interface
         input user_req_valid,
@@ -20,7 +22,9 @@ module axi_mst_rd #(
         output [`AXI_LEN_WIDTH-1:0] axi_mst_arlen,
         output [`AXI_SIZE_WIDTH -1:0] axi_mst_arsize,
         output [`AXI_BURST_WIDTH-1:0] axi_mst_arburst,
+        // VCS coverage off
         output [`AXI_USER_WIDTH-1:0] axi_mst_aruser,
+        // VCS coverage on
         output axi_mst_arvalid,
         input axi_mst_arready,
 
@@ -28,7 +32,9 @@ module axi_mst_rd #(
         input [`AXI_ID_WIDTH-1:0] axi_mst_rid,
         input [`AXI_DATA_WIDTH-1:0] axi_mst_rdata,
         input [`AXI_RESP_WIDTH-1:0] axi_mst_rresp,
+        // VCS coverage off
         input [`AXI_USER_WIDTH-1:0] axi_mst_ruser,
+        // VCS coverage on
         input axi_mst_rlast,
         input axi_mst_rvalid,
         output axi_mst_rready

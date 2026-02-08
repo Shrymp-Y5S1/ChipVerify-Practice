@@ -14,7 +14,7 @@ LOG_DIR    = $(OUT_DIR)/logs
 SIM_DIR    = $(OUT_DIR)/sim_$(TEST)
 FSDB_FILE  = $(TEST).fsdb
 # 确保 sim 和 check 操作的是同一个文件
-CURRENT_LOG = $(LOG_DIR)/sim_$(TEST)_$(SEED).log
+CURRENT_LOG = $(LOG_DIR)/sim_$(TEST)_$(UVM_TEST)_$(SEED).log
 
 # 工具链定义
 VCS        = vcs -full64 -sverilog -ntb_opts uvm -debug_access+all -kdb -lca -timescale=1ns/1ps \
@@ -61,7 +61,6 @@ sim:
 	       +fsdb+name=$(FSDB_FILE) \
 	       +ntb_random_seed=$(SEED) \
 	       +UVM_TESTNAME=$(UVM_TEST) \
-#            +UVM_VERBOSITY=UVM_HIGH \
 	       $(CM_OPTS) -cm_dir $(abspath $(CM_DIR)) -cm_name $(CM_NAME)
 
 # 打开波形 (Verdi)

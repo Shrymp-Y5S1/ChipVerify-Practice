@@ -4,7 +4,9 @@ module axi_mst_wr #(
     )(
         input clk,
         input rst_n,
+        // VCS coverage off
         input wr_en,
+        // VCS coverage on
 
         // User Request Interface
         input user_req_valid,
@@ -23,14 +25,18 @@ module axi_mst_wr #(
         output [`AXI_LEN_WIDTH-1:0] axi_mst_awlen,
         output [`AXI_SIZE_WIDTH -1:0] axi_mst_awsize,
         output [`AXI_BURST_WIDTH-1:0] axi_mst_awburst,
+        // VCS coverage off
         output [`AXI_USER_WIDTH-1:0] axi_mst_awuser,
+        // VCS coverage on
         output axi_mst_awvalid,
         input axi_mst_awready,
 
         // AXI Master Write Data Channel
         output [`AXI_DATA_WIDTH-1:0] axi_mst_wdata,
         output [(`AXI_DATA_WIDTH >> 3)-1:0] axi_mst_wstrb,
+        // VCS coverage off
         output [`AXI_USER_WIDTH-1:0] axi_mst_wuser,
+        // VCS coverage on
         output axi_mst_wlast,
         output axi_mst_wvalid,
         input axi_mst_wready,
@@ -38,7 +44,9 @@ module axi_mst_wr #(
         // AXI Master Write Response Channel
         input [`AXI_ID_WIDTH-1:0] axi_mst_bid,
         input [`AXI_RESP_WIDTH-1:0] axi_mst_bresp,
+        // VCS coverage off
         input [`AXI_USER_WIDTH-1:0] axi_mst_buser,
+        // VCS coverage on
         input axi_mst_bvalid,
         output axi_mst_bready
     );
