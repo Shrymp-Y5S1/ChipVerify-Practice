@@ -87,11 +87,6 @@ class axi_transaction extends uvm_sequence_item;
         }
     }
 
-    // 5. 限制 Burst 长度不超过 RTL 的 Buffer 深度 (MAX_BURST_LEN = 8)
-    constraint c_rtl_limit {
-        len <= 7;
-    }
-
     // 5. 4K 边界约束 (4K Boundary Constraint)
     // AXI 协议规定：一个 Burst 不能跨越 4K 地址边界。
     // 原理：(起始地址 / 4096) 必须等于 (结束地址 / 4096)
@@ -105,6 +100,11 @@ class axi_transaction extends uvm_sequence_item;
     constraint c_aligned_addr {
         solve size before addr; // 先随机 size，再随机 addr
         addr % (1 << size) == 0;
+    }
+
+    // 7. 限制 Burst 长度不超过 RTL 的 Buffer 深度 (MAX_BURST_LEN = 8)
+    constraint c_rtl_limit {
+        len <= 7;
     }
 
     // ----------------------------------------------------------------

@@ -37,6 +37,7 @@ class axi_base_seq extends uvm_sequence #(axi_transaction);
             len == 3;
             size == `AXI_SIZE_4_BYTE;
             burst == `AXI_BURST_INCR;
+            foreach (wstrb[i]) wstrb[i] == 4'hF;
         })
 
         // 3. 发送一个定向测试包：读操作，地址 0x1000
@@ -44,6 +45,8 @@ class axi_base_seq extends uvm_sequence #(axi_transaction);
             is_write == 0;
             addr == 32'h1000;
             len == 3;
+            size == `AXI_SIZE_4_BYTE;
+            burst == `AXI_BURST_INCR;
         })
 
         // 等待一点时间，让最后一笔传输完成

@@ -5,6 +5,7 @@
 ./verify/axi_driver.sv
 ./verify/axi_monitor.sv
 ./verify/axi_agent.sv
+./verify/axi_scoreboard.sv
 ./verify/axi_env.sv
 ./verify/axi_base_test.sv
 ./verify/tb_axi_mst.sv

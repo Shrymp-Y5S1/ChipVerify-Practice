@@ -8,7 +8,7 @@ class axi_env extends uvm_env;
 
     // 组件句柄
     axi_agent      agent;
-    // axi_scoreboard scb; // 预留scoreboard
+    axi_scoreboard scb;
 
     // 构造函数
     function new(string name, uvm_component parent);
@@ -22,16 +22,16 @@ class axi_env extends uvm_env;
         // 1. 创建 Agent
         agent = axi_agent::type_id::create("agent", this);
 
-        // 2. 后续创建 Scoreboard
-        // scb = axi_scoreboard::type_id::create("scb", this);
+        // 2. 创建 Scoreboard
+        scb = axi_scoreboard::type_id::create("scb", this);
     endfunction
 
     // Connect Phase
     function void connect_phase(uvm_phase phase);
         super.connect_phase(phase);
 
-        // 后续连接 Monitor 数据流到 Scoreboard
-        // agent.item_collected_port.connect(scb.item_export);
+        // 续连接 Monitor 数据流到 Scoreboard
+        agent.item_collected_port.connect(scb.item_export);
     endfunction
 
 endclass
