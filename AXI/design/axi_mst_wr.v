@@ -426,9 +426,9 @@ module axi_mst_wr #(
                     wr_strb_buff_r[i] <= #`DLY {(MAX_BURST_LEN*(`AXI_DATA_WIDTH >> 3)){1'b0}};
                 end
                 else if(wr_data_get[i]) begin
-                    wr_data_buff_r[i][((wr_curr_index_r[i]-1)*`AXI_DATA_WIDTH) +: `AXI_DATA_WIDTH] <= #`DLY {{`AXI_DATA_WIDTH-`AXI_ID_WIDTH-`AXI_ADDR_WIDTH{1'b0}},wr_id_buff_r[i],wr_curr_addr_r[i]};
+                    wr_data_buff_r[i][((wr_curr_index_r[i]-1)*`AXI_DATA_WIDTH) +: `AXI_DATA_WIDTH] <= #`DLY {{`AXI_DATA_WIDTH-`AXI_ID_WIDTH-`AXI_ADDR_WIDTH{1'b1}},wr_id_buff_r[i],wr_curr_addr_r[i]};
                     wr_data_vld_r[i][wr_curr_index_r[i]-1] <= #`DLY 1'b1;
-                    wr_strb_buff_r[i] <= #`DLY {(`AXI_DATA_WIDTH >> 3)*MAX_BURST_LEN{1'b1}};
+                    wr_strb_buff_r[i][(wr_curr_index_r[i]-1)*(`AXI_DATA_WIDTH >> 3) +: (`AXI_DATA_WIDTH >> 3)] <= #`DLY {(`AXI_DATA_WIDTH >> 3){1'b1}} << (wr_curr_index_r[i] - 1); // For testing, use shifting strobe to simulate partial last beat transfer
                 end
             end
 

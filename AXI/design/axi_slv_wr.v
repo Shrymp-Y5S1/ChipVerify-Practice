@@ -70,6 +70,7 @@ module axi_slv_wr #(
     reg [`AXI_SIZE_WIDTH-1:0] wr_size_buff_r [OST_DEPTH-1:0];
     reg [`AXI_BURST_WIDTH-1:0] wr_burst_buff_r [OST_DEPTH-1:0];
     reg [`AXI_USER_WIDTH-1:0] wr_user_buff_r [OST_DEPTH-1:0];
+    reg [(`AXI_DATA_WIDTH >> 3)-1:0] wr_strb_buff_r [OST_DEPTH-1:0];
 
     // Hold write data beats and track per-burst data valid and responses
     reg [MAX_BURST_LEN-1:0] wr_data_vld_r [OST_DEPTH-1:0];
@@ -271,7 +272,7 @@ module axi_slv_wr #(
                 else if(wr_result_en && (i == wr_ptr_result)) begin
                     wr_curr_index_r[i] <= #`DLY `AXI_LEN_WIDTH'h0;
                 end
-                else if(wr_data_en) begin
+                else if(wr_data_en && (i == wr_ptr_data)) begin
                     wr_curr_index_r[i] <= #`DLY wr_curr_index_r[i] + 1'b1;
                 end
             end
@@ -349,18 +350,25 @@ module axi_slv_wr #(
             end
             // Write Data Buffer
             always @(posedge clk or negedge rst_n) begin
+                integer k;
                 if(!rst_n) begin
                     wr_data_buff_r[i] <= #`DLY {`AXI_DATA_WIDTH*MAX_BURST_LEN{1'b0}};
                     wr_data_vld_r[i] <= #`DLY {MAX_BURST_LEN{1'b0}};
+                    wr_strb_buff_r[i] <= #`DLY {((`AXI_DATA_WIDTH >> 3)*MAX_BURST_LEN){1'b0}};
                 end
                 else if(wr_buff_set && (wr_ptr_set == i)) begin
                     wr_data_buff_r[i] <= #`DLY {`AXI_DATA_WIDTH*MAX_BURST_LEN{1'b0}};
                     wr_data_vld_r[i] <= #`DLY {MAX_BURST_LEN{1'b0}};
+                    wr_strb_buff_r[i] <= #`DLY {((`AXI_DATA_WIDTH >> 3)*MAX_BURST_LEN){1'b0}};
                 end
-                // else if(wr_data_en && (wr_ptr_data == i)) begin
-                else if(wr_data_en) begin
-                    wr_data_buff_r[i][((wr_curr_index_r[i]-1)*`AXI_DATA_WIDTH) +: `AXI_DATA_WIDTH] <= # `DLY axi_slv_wdata;
+                else if(wr_data_en && (wr_ptr_data == i)) begin
+                    for(k=0; k<(`AXI_DATA_WIDTH/8); k=k+1) begin
+                        if(axi_slv_wstrb[k]) begin
+                            wr_data_buff_r[i][((wr_curr_index_r[i]-1)*`AXI_DATA_WIDTH) + (k*8) +: 8] <= # `DLY axi_slv_wdata[k*8 +: 8];
+                        end
+                    end
                     wr_data_vld_r[i][wr_curr_index_r[i]-1] <= # `DLY 1'b1;
+                    wr_strb_buff_r[i][((wr_curr_index_r[i]-1)*(`AXI_DATA_WIDTH >> 3)) +: (`AXI_DATA_WIDTH >> 3)] <= # `DLY axi_slv_wstrb;
                 end
             end
 
