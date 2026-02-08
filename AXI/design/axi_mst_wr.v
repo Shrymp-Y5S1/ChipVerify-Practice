@@ -1,5 +1,6 @@
 module axi_mst_wr #(
-        parameter OST_DEPTH = 16
+        parameter OST_DEPTH = 16,
+        parameter MAX_BURST_LEN = 8
     )(
         input clk,
         input rst_n,
@@ -42,7 +43,6 @@ module axi_mst_wr #(
         output axi_mst_bready
     );
 
-    localparam MAX_BURST_LEN = 8;
     localparam BURST_CNT_WIDTH = $clog2(MAX_BURST_LEN+1);
     localparam OST_CNT_WIDTH = $clog2(OST_DEPTH + 1);
     localparam MAX_REQ_NUM = 16;
@@ -362,6 +362,9 @@ module axi_mst_wr #(
     // ----------------------------------------------------------------
     // Output signal assignments
     // ----------------------------------------------------------------
+    // User request ready when buffer not full
+    assign user_req_ready = ~wr_buff_full;
+
     // AXI Master Write Address Channel
     assign axi_mst_awid = wr_id_buff_r [wr_ptr_req];
     assign axi_mst_awaddr = wr_addr_buff_r [wr_ptr_req];

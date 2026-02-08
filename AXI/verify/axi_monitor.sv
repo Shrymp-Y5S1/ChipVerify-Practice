@@ -1,6 +1,4 @@
 `include "uvm_macros.svh"
-`include "axi_define.v"
-
 import uvm_pkg::*;
 
 class axi_monitor extends uvm_monitor;
@@ -25,7 +23,7 @@ class axi_monitor extends uvm_monitor;
     function void build_phase(uvm_phase phase);
         super.build_phase(phase);
         if(!uvm_config_db#(virtual axi_interface)::get(this, "", "vif", vif)) begin
-            `uvm_fatal("NOVIF", "Virtual interface must be set for: ", get_full_name(), ".vif");
+            `uvm_fatal("NOVIF", $sformatf("Virtual interface must be set for: %s.vif", get_full_name()))
         end
     endfunction
 

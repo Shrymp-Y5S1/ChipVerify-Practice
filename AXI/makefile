@@ -1,6 +1,7 @@
 # --- 路径与参数定义 ---
 # 默认仿真的测试名，可以通过 make TEST=tb_xxx 覆盖
-TEST      ?= tb_axi_basic
+TEST      ?= tb_axi_mst
+UVM_TEST  ?= axi_base_test
 # 随机数种子，可以通过 make SEED=12345 进行覆盖
 SEED      := $(shell date +%s)
 FLIST     ?= ./flist/$(TEST).f
@@ -18,7 +19,8 @@ CURRENT_LOG = $(LOG_DIR)/sim_$(TEST)_$(SEED).log
 # 工具链定义
 VCS        = vcs -full64 -sverilog -ntb_opts uvm -debug_access+all -kdb -lca -timescale=1ns/1ps \
              -assert enable_debug \
-             +define+SVA_ENABLE
+             +define+SVA_ENABLE \
+             +incdir+./design +incdir+./verify
 SIM        = ./$(SIM_DIR)/simv
 VERDI      = verdi -dbdir $(SIM_DIR)/simv.daidir
 
@@ -52,12 +54,14 @@ comp: prepare
 
 # 仿真
 sim:
-	@echo "Running Test: $(TEST) with Seed: $(SEED)"
+	@echo "Running Test: $(TEST) with UVM Case: $(UVM_TEST) Seed: $(SEED)"
 	mkdir -p $(LOG_DIR)
 	cd $(SIM_DIR) && ./simv \
 	       -l $(abspath $(CURRENT_LOG)) \
 	       +fsdb+name=$(FSDB_FILE) \
 	       +ntb_random_seed=$(SEED) \
+	       +UVM_TESTNAME=$(UVM_TEST) \
+#            +UVM_VERBOSITY=UVM_HIGH \
 	       $(CM_OPTS) -cm_dir $(abspath $(CM_DIR)) -cm_name $(CM_NAME)
 
 # 打开波形 (Verdi)

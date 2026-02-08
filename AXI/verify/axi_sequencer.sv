@@ -1,5 +1,4 @@
 `include "uvm_macros.svh"
-`include "axi_define.v"
 import uvm_pkg::*;
 
 class axi_sequencer extends uvm_sequencer #(axi_transaction);

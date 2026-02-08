@@ -1,5 +1,4 @@
-`include "axi_define.v"
-interface axi_if #(
+interface axi_interface #(
     parameter ID_WIDTH    = `AXI_ID_WIDTH,
     parameter ADDR_WIDTH  = `AXI_ADDR_WIDTH,
     parameter DATA_WIDTH  = `AXI_DATA_WIDTH,

@@ -1,6 +1,4 @@
 `include "uvm_macros.svh"
-`include "axi_define.v"
-
 import uvm_pkg::*;
 
 class axi_transaction extends uvm_sequence_item;
@@ -87,6 +85,11 @@ class axi_transaction extends uvm_sequence_item;
             // WRAP 模式下必须地址对齐
             addr % (1 << size) == 0;
         }
+    }
+
+    // 5. 限制 Burst 长度不超过 RTL 的 Buffer 深度 (MAX_BURST_LEN = 8)
+    constraint c_rtl_limit {
+        len <= 7;
     }
 
     // 5. 4K 边界约束 (4K Boundary Constraint)

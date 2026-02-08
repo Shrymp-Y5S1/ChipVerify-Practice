@@ -1,6 +1,4 @@
 `include "uvm_macros.svh"
-`include "axi_define.v"
-
 import uvm_pkg::*;
 
 // 声明时指定 Item 类型
@@ -21,7 +19,7 @@ class axi_driver extends uvm_driver #(axi_transaction);
     function void build_phase(uvm_phase phase);
         super.build_phase(phase);
         if(!uvm_config_db#(virtual axi_interface)::get(this, "", "vif", vif)) begin
-            `uvm_fatal("NOVIF", "Virtual interface must be set for: ", get_full_name(), ".vif");
+            `uvm_fatal("NOVIF", $sformatf("Virtual interface must be set for: %s.vif", get_full_name()))
         end
     endfunction
 

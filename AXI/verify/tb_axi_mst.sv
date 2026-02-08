@@ -1,10 +1,6 @@
 `timescale 1ns/1ps
 
 `include "uvm_macros.svh"
-`include "axi_define.v"
-
-// 引入 RTL 和 验证组件
-`include "axi_interface.sv"
 
 module tb_axi_mst;
 
@@ -31,13 +27,15 @@ module tb_axi_mst;
     // 2. Interface Instantiation
     // ----------------------------------------------------------------
     axi_interface if0(clk, rst_n);
-
+    // 用来接收 RD 和 WR 模块的 Ready 输出
+    wire rd_ready_out;
+    wire wr_ready_out;
     // ----------------------------------------------------------------
     // 3. DUT Connection (Bridge Logic)
     // ----------------------------------------------------------------
     // 这里的逻辑是 TB 的核心：它负责把 Interface 的信号“分发”给读写两个模块
 
-    assign if0.user_req_ready = u_rd.user_req_ready || u_wr.user_req_ready; // 简单的 OR 逻辑，实际可能需要仲裁
+    assign if0.user_req_ready = if0.user_req_we ? wr_ready_out : rd_ready_out;
 
     // 3.1 读通道连接 (axi_mst_rd)
     axi_mst_rd #(
@@ -50,7 +48,7 @@ module tb_axi_mst;
         // User Interface Connect (Demux Logic)
         // 只有当 valid=1 且 we=0 (读) 时，才把 Valid 传给读模块
         .user_req_valid (if0.user_req_valid && !if0.user_req_we),
-        .user_req_ready (if0.user_req_ready), // 假设读写 Ready 逻辑相同，或需做仲裁
+        .user_req_ready (rd_ready_out), // 假设读写 Ready 逻辑相同，或需做仲裁
         .user_req_id    (if0.user_req_id),
         .user_req_addr  (if0.user_req_addr),
         .user_req_len   (if0.user_req_len),
@@ -89,7 +87,7 @@ module tb_axi_mst;
         // User Interface Connect (Demux Logic)
         // 只有当 valid=1 且 we=1 (写) 时，才把 Valid 传给写模块
         .user_req_valid (if0.user_req_valid && if0.user_req_we),
-        .user_req_ready (if0.user_req_ready), // 注意：这里有冲突，实际上需要一个 OR 逻辑或仲裁
+        .user_req_ready (wr_ready_out), // 注意：这里有冲突，实际上需要一个 OR 逻辑或仲裁
         .user_req_id    (if0.user_req_id),
         .user_req_addr  (if0.user_req_addr),
         .user_req_len   (if0.user_req_len),
