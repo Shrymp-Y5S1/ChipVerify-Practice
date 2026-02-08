@@ -43,10 +43,10 @@ module axi_mst_wr #(
     // internal registers
     // ----------------------------------------------------------------
     // control and state signals
-    wire wr_buff_set;   // decision and config 决策信号
+    wire wr_buff_set;   // decision and config
     wire wr_buff_clr;
     wire wr_buff_full;
-    reg wr_buff_set_r;  // start 启动后续流程
+    reg wr_buff_set_r;  // start subsequent process
 
     reg wr_valid_buff_r [OST_DEPTH-1:0];
     reg wr_req_buff_r [OST_DEPTH-1:0];
@@ -61,15 +61,15 @@ module axi_mst_wr #(
     reg [OST_DEPTH-1:0] wr_clear_bits;
 
     // Write pointers
-    wire [OST_CNT_WIDTH-1:0] wr_ptr_set;    // decision and config 决策与写入配置
+    wire [OST_CNT_WIDTH-1:0] wr_ptr_set;    // decision and config
     wire [OST_CNT_WIDTH-1:0] wr_ptr_clr;
     wire [OST_CNT_WIDTH-1:0] wr_ptr_req;
     wire [OST_CNT_WIDTH-1:0] wr_ptr_data;
     wire [OST_CNT_WIDTH-1:0] wr_ptr_result;
-    reg [OST_CNT_WIDTH-1:0] wr_ptr_set_r;   // start 启动后续流程
+    reg [OST_CNT_WIDTH-1:0] wr_ptr_set_r;   // start subsequent process
 
     // Write request buffers
-    reg [`AXI_LEN_WIDTH-1:0] wr_curr_index_r;
+    reg [`AXI_LEN_WIDTH-1:0] wr_curr_index_r [OST_DEPTH-1:0];
     reg [`AXI_ID_WIDTH-1:0] wr_id_buff_r [OST_DEPTH-1:0];
     reg [`AXI_ADDR_WIDTH-1:0] wr_addr_buff_r [OST_DEPTH-1:0];
     reg [`AXI_LEN_WIDTH-1:0] wr_len_buff_r [OST_DEPTH-1:0];
@@ -235,7 +235,7 @@ module axi_mst_wr #(
                 end
                 else begin
                     if(wr_buff_set && (i == wr_ptr_set)) begin
-                        wr_data_ready_r[i] <= #`DLY 1'b1;
+                        wr_data_ready_r[i] <= #`DLY 1'b0;
                     end
                     else if(wr_data_en && ~wr_data_last && (wr_ptr_data == i) && wr_data_vld_r[i][wr_data_cnt_r[i]+1]) begin
                         // 当前正在传数据，且下一拍数据也已经就绪
@@ -369,7 +369,7 @@ module axi_mst_wr #(
                 end
             end
 
-            // Current address calculation
+            // Current address calculation（real master write didn't need）
             always @(posedge clk or negedge rst_n) begin
                 if(!rst_n) begin
                     wr_curr_addr_r[i] <= #`DLY `AXI_ADDR_WIDTH'h0;
