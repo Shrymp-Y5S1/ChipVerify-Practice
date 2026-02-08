@@ -5,9 +5,27 @@ interface axi_if #(
     parameter DATA_WIDTH  = `AXI_DATA_WIDTH,
     parameter LEN_WIDTH   = `AXI_LEN_WIDTH,
     parameter SIZE_WIDTH  = `AXI_SIZE_WIDTH,
-    parameter BURST_WIDTH = `AXI_BURST_WIDTH
+    parameter BURST_WIDTH = `AXI_BURST_WIDTH,
+    parameter USER_WIDTH  = `AXI_USER_WIDTH,
+    parameter MAX_BURST_LEN = 8
 )(input clk, input rst_n);
 
+    // --------------------------------------------------------
+    // User Interface Signals
+    // --------------------------------------------------------
+    logic user_req_valid;
+    logic user_req_ready;
+    logic [`AXI_ID_WIDTH-1:0] user_req_id;
+    logic [`AXI_ADDR_WIDTH-1:0] user_req_addr;
+    logic [`AXI_LEN_WIDTH-1:0] user_req_len;
+    logic [`AXI_SIZE_WIDTH-1:0] user_req_size;
+    logic [`AXI_BURST_WIDTH-1:0] user_req_burst;
+    logic [MAX_BURST_LEN*`AXI_DATA_WIDTH-1:0] user_req_wdata;
+    logic [MAX_BURST_LEN*(`AXI_DATA_WIDTH/8)-1:0] user_req_wstrb;
+
+    // --------------------------------------------------------
+    // AXI Standard Signals
+    // --------------------------------------------------------
     // Write Address Channel
     logic [ID_WIDTH-1:0]    awid;
     logic [ADDR_WIDTH-1:0]  awaddr;
@@ -68,5 +86,15 @@ interface axi_if #(
 
     assert_valid_no_x: assert property(p_valid_no_x)
         else $error("AXI Protocol Violation: VALID signal has X state!");
+
+    // ----------------------------------------
+    // Modport
+    // ----------------------------------------
+    // Driver 视角的 Modport
+    modport DRV (
+        input  clk, rst_n, user_req_ready,
+        output user_req_valid, user_req_id, user_req_addr, user_req_len,
+               user_req_size, user_req_burst, user_req_wdata, user_req_wstrb
+    );
 
 endinterface
