@@ -1,7 +1,7 @@
 `define AXI_ID_WIDTH        4
 `define AXI_ADDR_WIDTH      16
 `define AXI_DATA_WIDTH      32
-`define AXI_LEN_WIDTH       16
+`define AXI_LEN_WIDTH       8
 `define AXI_SIZE_WIDTH      3
 `define AXI_BURST_WIDTH     2
 `define AXI_CACHE_WIDTH     4

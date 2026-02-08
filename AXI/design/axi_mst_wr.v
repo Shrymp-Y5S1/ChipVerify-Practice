@@ -374,7 +374,7 @@ module axi_mst_wr #(
     assign axi_mst_wdata = wr_data_buff_r [wr_ptr_data][(wr_data_cnt_r[wr_ptr_data]*`AXI_DATA_WIDTH) +: `AXI_DATA_WIDTH];
     assign axi_mst_wstrb = wr_strb_buff_r [wr_ptr_data][(wr_data_cnt_r[wr_ptr_data]*(`AXI_DATA_WIDTH >> 3)) +: (`AXI_DATA_WIDTH >> 3)];
     assign axi_mst_wlast = axi_mst_wvalid & (wr_data_cnt_r[wr_ptr_data] == wr_len_buff_r[wr_ptr_data]); // Last when data count reaches burst length - 1
-    assign axi_mst_wvalid = wr_valid_buff_r[wr_ptr_data] & wr_data_ready_r[wr_ptr_data] & (|wr_order_bits); // Valid when data ready and data valid
+    assign axi_mst_wvalid = wr_valid_buff_r[wr_ptr_data] & wr_data_ready_r[wr_ptr_data] & (|wr_order_bits); // Valid when buffer valid, data ready and in order
 
 
     // AXI Master Write Response Channel
