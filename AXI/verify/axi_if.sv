@@ -13,6 +13,7 @@ interface axi_if #(
     // --------------------------------------------------------
     // User Interface Signals
     // --------------------------------------------------------
+    logic user_req_we; // 1=Write, 0=Read
     logic user_req_valid;
     logic user_req_ready;
     logic [`AXI_ID_WIDTH-1:0] user_req_id;
@@ -93,7 +94,7 @@ interface axi_if #(
     // Driver 视角的 Modport
     modport DRV (
         input  clk, rst_n, user_req_ready,
-        output user_req_valid, user_req_id, user_req_addr, user_req_len,
+        output user_req_we, user_req_valid, user_req_id, user_req_addr, user_req_len,
                user_req_size, user_req_burst, user_req_wdata, user_req_wstrb
     );
 

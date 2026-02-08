@@ -52,6 +52,7 @@ class axi_driver extends uvm_driver #(axi_transaction);
     // task: reset
     // ----------------------------------------------------------------
     virtual task drive_reset();
+        vif.user_req_we <= 0;
         vif.user_req_valid <= 0;
         vif.user_req_id <= 0;
         vif.user_req_addr <= 0;
@@ -68,6 +69,7 @@ class axi_driver extends uvm_driver #(axi_transaction);
     // ----------------------------------------------------------------
     virtual task drive_transfer(axi_transaction tr);
         // 1. 驱动控制信号
+        vif.user_req_we    <= tr.is_write;
         vif.user_req_id    <= tr.id;
         vif.user_req_addr  <= tr.addr;
         vif.user_req_len   <= tr.len;
