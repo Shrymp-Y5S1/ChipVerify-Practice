@@ -130,7 +130,6 @@ module tb_axi_mst;
 
     // 3.1 接收 AW 请求 -> 存入 AW FIFO
     initial begin
-        if0.awready = 1;
         forever begin
             @(posedge clk);
             if(if0.awvalid && if0.awready) begin
@@ -146,7 +145,6 @@ module tb_axi_mst;
 
     // 3.2 接收 W 数据 -> 存入 W FIFO
     initial begin
-        if0.wready = 1;
         forever begin
             @(posedge clk);
             if(if0.wvalid && if0.wready) begin
@@ -219,7 +217,6 @@ module tb_axi_mst;
 
     // 3.3 接收 AR 请求
     initial begin
-        if0.arready = 1;
         forever begin
             @(posedge clk);
             if(if0.arvalid && if0.arready) begin
@@ -281,7 +278,53 @@ module tb_axi_mst;
     end
 
     // ----------------------------------------------------------------
-    // 4. Config DB & Run
+    // 4. 驱动 Ready 信号 (随机反压)
+    // ----------------------------------------------------------------
+    // AW Ready 驱动 (随机反压)
+    initial begin
+        if0.awready = 0;
+        forever begin
+            @(posedge clk);
+            if(rst_n) begin
+                // 30% 概率反压，70% 概率 Ready
+                // std::randomize 也可以，但在模块层级用 randcase 更方便
+                randcase
+                    70: if0.awready <= 1;
+                    30: if0.awready <= 0;
+                endcase
+            end
+        end
+    end
+
+    // AR Ready 驱动 (随机反压)
+    initial begin
+        if0.arready = 0;
+        forever begin
+            @(posedge clk);
+            if(rst_n) begin
+                randcase
+                    70: if0.arready <= 1;
+                    30: if0.arready <= 0;
+                endcase
+            end
+        end
+    end
+
+    // W Ready 也可以加上，但目前的 assertion 只检查了 AR
+    initial begin
+         if0.wready = 0;
+         forever begin
+            @(posedge clk);
+            if(rst_n)
+                randcase
+                    70: if0.wready <= 1;
+                    30: if0.wready <= 0;
+                endcase
+         end
+    end
+
+    // ----------------------------------------------------------------
+    // 5. Config DB & Run
     // ----------------------------------------------------------------
     initial begin
         uvm_config_db#(virtual axi_interface)::set(null, "*", "vif", if0);

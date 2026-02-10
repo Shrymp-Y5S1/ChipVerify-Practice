@@ -69,7 +69,7 @@ interface axi_interface #(
     // SVA (协议检查)
     // --------------------------------------------------------
 
-    // 1. 稳定性检查：当 Valid 拉高但 Ready 为低时，控制信号必须保持稳定
+    // 1. 读通道（AR）稳定性检查
     property p_stable_araddr;
         @(posedge clk) disable iff(!rst_n)
         (arvalid && !arready) |-> $stable({arid, araddr, arlen, arsize, arburst});
@@ -86,6 +86,23 @@ interface axi_interface #(
 
     assert_valid_no_x: assert property(p_valid_no_x)
         else $error("AXI Protocol Violation: VALID signal has X state!");
+
+    // 3. 写通道 (AW) 稳定性检查
+    property p_stable_awaddr;
+        @(posedge clk) disable iff(!rst_n)
+        (awvalid && !awready) |-> $stable({awid, awaddr, awlen, awsize, awburst});
+    endproperty
+    assert_stable_awaddr: assert property(p_stable_awaddr)
+        else $error("AXI Violation: AWADDR/Ctrl changed while AWVALID is high and AWREADY is low!");
+
+    // 4. 写数据 (W) 稳定性检查
+    // 如果 Master 发出数据后 Slave 没收，数据和 Last 信号绝对不能变
+    property p_stable_wdata;
+        @(posedge clk) disable iff(!rst_n)
+        (wvalid && !wready) |-> $stable({wdata, wstrb, wlast});
+    endproperty
+    assert_stable_wdata: assert property(p_stable_wdata)
+        else $error("AXI Violation: WDATA/WLAST changed while WVALID is high and WREADY is low!");
 
     // ----------------------------------------
     // Modport
