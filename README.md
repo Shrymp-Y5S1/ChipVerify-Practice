@@ -1,13 +1,14 @@
-# Verilog Practice Project
+# Digital IC Design & Verification Lab
 
-本项目包含一系列精炼的 Verilog 练习模块，涵盖组合逻辑、时序逻辑、有限状态机 (FSM)、存储器设计及常用架构模式。旨在通过基础与进阶电路的实现，巩固 Verilog 编码与数字电路设计能力。
+这是一个综合性的数字 IC 设计与验证演练库，内容涵盖从基础 Verilog 模块（逻辑、FSM、存储器）到 APB_UART、AXI 等较复杂总线设计，以及配套的 UVM 验证平台和相关理论笔记（AXI4、SV、UVM），并正在推进 RISC-V CPU 内核开发。本项目旨在通过从单元电路到系统级设计的实战，系统性地巩固数字 IC 设计与验证能力。
 
 ## 模块索引 (Module Index)
 
 ### Projects (工程练习)
 
-- **APB UART** (基于 APB 总线的 UART): [APB_UART](APB_UART)
-- **AXI Basic** (AXI 基础模块): [AXI](AXI)
+- **APB UART** (基于 APB 总线的 UART):  [APB_UART](Project\APB_UART)
+- **AXI**(AXI4 - Full):  [AXI](Project\AXI)
+- **RISC-V**:  [RISC_V](Project\RISC_V)
 
 ### Notes (学习笔记)
 
