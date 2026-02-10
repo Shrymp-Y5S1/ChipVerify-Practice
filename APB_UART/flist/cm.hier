@@ -1,2 +1,0 @@
--tree tb_top_uvm         // 1. 先排除顶层所有内容（包括 TB）
-+tree tb_top_uvm.u_apb_if 0 // 2. 再精准包含你的设计实例及其所有子模块
