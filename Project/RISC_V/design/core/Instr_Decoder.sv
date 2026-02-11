@@ -16,7 +16,14 @@ module Instr_Decoder
     output logic [31:0] instr_id,
     output logic [31:0] operand1_id,
     output logic [31:0] operand2_id,
-    output logic        reg_wen_id
+    output logic        reg_wen_id,
+
+    output              ram_load_access_id,
+    output              ram_store_access_id,
+    output logic [31:0] ram_load_addr_id,
+    output logic [31:0] ram_store_addr_id,
+    output logic [31:0] ram_store_data_id
+
 );
 
   assign instr_id      = instr_if_id;
@@ -39,11 +46,17 @@ module Instr_Decoder
 
   // decode logic
   always_comb begin
-    reg1_raddr  = rs1;
-    reg2_raddr  = rs2;
-    operand1_id = 0;
-    operand2_id = 0;
-    reg_wen_id  = 0;
+    reg1_raddr          = rs1;
+    reg2_raddr          = rs2;
+    operand1_id         = 0;
+    operand2_id         = 0;
+    reg_wen_id          = 0;
+
+    ram_load_access_id  = 0;
+    ram_store_access_id = 0;
+    ram_load_addr_id    = reg1_rdata + imm_i;
+    ram_store_addr_id   = reg1_rdata + imm_s;
+    ram_store_data_id   = reg2_rdata;
 
     unique case (opcode)
       RV32I_OP_LUI: begin
@@ -55,6 +68,46 @@ module Instr_Decoder
         reg_wen_id  = 1;
         operand1_id = instr_addr_if_id;
         operand2_id = imm_u;
+      end
+      RV32I_OP_JAL: begin
+        reg_wen_id  = 1;
+        operand1_id = instr_addr_if_id;
+        operand2_id = imm_j;
+      end
+      RV32I_OP_JALR: begin
+        reg_wen_id  = 1;
+        operand1_id = reg1_rdata;
+        operand2_id = imm_i;
+      end
+      RV32I_OP_B: begin
+        unique case (funct3)
+          RV32I_BEQ, RV32I_BNE, RV32I_BLT, RV32I_BGE, RV32I_BLTU, RV32I_BGEU: begin
+            operand1_id = reg1_rdata;
+            operand2_id = reg2_rdata;
+          end
+          default: ;
+        endcase
+      end
+      RV32I_OP_L: begin
+        case (funct3)
+          RV32I_LB, RV32I_LH, RV32I_LW, RV32I_LBU, RV32I_LHU: begin
+            ram_load_access_id = 1;
+            reg_wen_id         = 1;
+            // operand1_id        = reg1_rdata;
+            // operand2_id        = imm_i;
+          end
+          default: ;
+        endcase
+      end
+      RV32I_OP_S: begin
+        case (funct3)
+          V32I_SB, V32I_SH, V32I_SW: begin
+            ram_store_access_id = 1;
+            // operand1_id        = reg1_rdata;
+            // operand2_id        = imm_s;
+          end
+          default: ;
+        endcase
       end
       RV32I_OP_I: begin
         unique case (funct3)
@@ -68,6 +121,7 @@ module Instr_Decoder
             operand2_id = {27'b0, shamt};
             reg_wen_id  = 1;
           end
+          default: ;
         endcase
       end
       RV32I_OP_R: begin
@@ -78,8 +132,10 @@ module Instr_Decoder
             operand2_id = reg2_rdata;
             reg_wen_id  = 1;
           end
+          default: ;
         endcase
       end
+      default: ;
     endcase
   end
 

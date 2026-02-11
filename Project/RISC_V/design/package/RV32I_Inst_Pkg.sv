@@ -25,6 +25,9 @@ package RV32I_Inst_Pkg;
   localparam bit [2:0] RV32I_SLLI = 3'b001;
   localparam bit [2:0] RV32I_SRLI_SRAI = 3'b101;
 
+  // 寄存器链接跳转指令
+  localparam bit [6:0] RV32I_OP_JALR = 7'b1100111;
+
   // LOAD指令
   localparam bit [6:0] RV32I_OP_L = 7'b0000011;
   localparam bit [2:0] RV32I_LB = 3'b000;
