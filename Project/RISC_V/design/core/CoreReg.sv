@@ -20,8 +20,8 @@ module CoreReg (
   always_comb begin
     if (!reg1_raddr) begin
       reg1_rdata = 0;
-    end else if (reg_wen && (reg1_raddr == reg_waddr)) begin
-      reg_wdata = reg1_rdata;
+    end else if (reg_wen && (reg1_raddr == reg_waddr)) begin  // forwarding
+      reg1_rdata = reg_wdata;
     end else begin
       reg1_rdata = core_reg[reg1_raddr];
     end
@@ -30,8 +30,8 @@ module CoreReg (
   always_comb begin
     if (!reg2_raddr) begin
       reg2_rdata = 0;
-    end else if (reg_wen && (reg2_raddr == reg_waddr)) begin
-      reg_wdata = reg2_rdata;
+    end else if (reg_wen && (reg2_raddr == reg_waddr)) begin  // forwarding
+      reg2_rdata = reg_wdata;
     end else begin
       reg2_rdata = core_reg[reg2_raddr];
     end
