@@ -6,21 +6,21 @@ module RV_core_top (
     output logic [31:0] instr_addr
 );
 
-  // output declaration of module CoreCtrl
+  // CoreCtrl
   wire [31:0] jump_addr;
   wire        jump;
   wire        stall_n;
   wire        flush;
-  // output declaration of module PC_Reg
+  // PC register
   wire [31:0] pc;
-  // output declaration of module Instr_Fetch
+  // Instruction fetch
   wire [31:0] instr_addr;
   wire [31:0] instr_if;
   wire [31:0] instr_addr_if;
-  // output declaration of module IF_ID
+  // IF/ID pipeline register
   wire [31:0] instr_if_id;
   wire [31:0] instr_addr_if_id;
-  // output declaration of module Instr_Decoder
+  // Instruction Decoder
   wire [ 4:0] reg1_raddr;
   wire [ 4:0] reg2_raddr;
   wire [31:0] instr_addr_id;
@@ -28,16 +28,16 @@ module RV_core_top (
   wire [31:0] operand1_id;
   wire [31:0] operand2_id;
   wire        reg_wen_id;
-  // output declaration of module CoreReg
+  // CoreReg
   wire [31:0] reg1_rdata;
   wire [31:0] reg2_rdata;
-  // output declaration of module ID_EX
+  // ID/EX pipeline register
   wire [31:0] instr_addr_ex;
   wire [31:0] instr_id_ex;
   wire [31:0] operand1_ex;
   wire [31:0] operand2_ex;
   wire        reg_wen_ex;
-  // output declaration of module Instr_Execute
+  // Instruction Execute
   wire [31:0] reg_wdata;
   wire [ 4:0] reg_waddr;
   wire        reg_wen;
@@ -51,17 +51,17 @@ module RV_core_top (
       .flush    (flush)
   );
 
-
+  // PC register
   PC_Reg u_PC_Reg (
       .clk      (clk),
       .rst_sync (rst_sync),
       .stall_n  (stall_n),
       .jump_addr(jump_addr),
-      .jump_en  (jump_en),
+      .jump     (jump),
       .pc       (pc)
   );
 
-
+  // instruction fetch
   Instr_Fetch u_Instr_Fetch (
       .pc           (pc),
       .instr        (instr),
@@ -70,7 +70,7 @@ module RV_core_top (
       .instr_addr_if(instr_addr_if)
   );
 
-
+  // IF/ID pipeline register
   IF_ID u_IF_ID (
       .clk             (clk),
       .rst_sync        (rst_sync),
@@ -82,7 +82,7 @@ module RV_core_top (
       .instr_addr_if_id(instr_addr_if_id)
   );
 
-
+  // instruction decoder
   Instr_Decoder u_Instr_Decoder (
       .instr_if_id     (instr_if_id),
       .instr_addr_if_id(instr_addr_if_id),
@@ -111,8 +111,7 @@ module RV_core_top (
       .reg_wen   (reg_wen)
   );
 
-
-
+  // ID/EX pipeline register
   ID_EX u_ID_EX (
       .clk          (clk),
       .rst_sync     (rst_sync),
@@ -130,7 +129,7 @@ module RV_core_top (
       .reg_wen_ex   (reg_wen_ex)
   );
 
-
+  // instruction execute
   Instr_Execute u_Instr_Execute (
       .instr_id_ex  (instr_id_ex),
       .instr_addr_ex(instr_addr_ex),
@@ -141,6 +140,5 @@ module RV_core_top (
       .reg_waddr    (reg_waddr),
       .reg_wen      (reg_wen)
   );
-
 
 endmodule

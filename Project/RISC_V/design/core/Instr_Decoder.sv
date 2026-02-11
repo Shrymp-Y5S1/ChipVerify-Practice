@@ -5,7 +5,7 @@ module Instr_Decoder
     input [31:0] instr_if_id,
     input [31:0] instr_addr_if_id,
 
-    // output to register
+    // in/output to register
     output logic [ 4:0] reg1_raddr,
     output logic [ 4:0] reg2_raddr,
     input        [31:0] reg1_rdata,
