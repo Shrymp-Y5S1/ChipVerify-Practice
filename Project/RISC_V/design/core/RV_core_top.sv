@@ -81,6 +81,7 @@ module RV_core_top (
       .clk      (clk),
       .rst_sync (rst_sync),
       .stall_n  (stall_n),
+      .flush    (flush),
       .jump_addr(jump_addr),
       .jump     (jump),
       .pc       (pc)
