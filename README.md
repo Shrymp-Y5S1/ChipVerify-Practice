@@ -1,6 +1,6 @@
 # Digital IC Design & Verification Lab
 
-这是一个综合性的数字 IC 设计与验证演练库，内容涵盖从基础 Verilog 模块（逻辑、FSM、存储器）到 APB_UART、AXI 等较复杂总线设计，以及配套的 UVM 验证平台和相关理论笔记（AXI4、SV、UVM），并正在推进 RISC-V CPU 内核开发。本项目旨在通过从单元电路到系统级设计的实战，系统性地巩固数字 IC 设计与验证能力。
+这是一个综合性的数字 IC 设计与验证演练库，内容涵盖从基础 Verilog 模块（逻辑、FSM、存储器）和 UVM 基础到 APB_UART、AXI 等较复杂总线设计，以及配套的 UVM 验证平台和相关理论笔记（AXI4、SV、UVM），并正在推进 RISC-V CPU 内核开发。本项目旨在通过从单元电路到系统级设计的实战，系统性地巩固数字 IC 设计与验证能力。
 
 ## 模块索引 (Module Index)
 
@@ -14,7 +14,12 @@
 
 - AXI4 Protocol: [Notes/AXI/AXI4.md](Notes/AXI/AXI4.md)
 - SystemVerilog 验证测试平台编写指南（第二版）: [Notes/SV/HVL_SV.md](Notes/SV/HVL_SV.md)
-- UVM实战: [Notes/UVM/UVM.md](Notes/UVM/UVM.md)
+- UVM 概览 (UVM Overview): [Notes/UVM/UVM_overview.md](Notes/UVM/UVM_overview.md)
+- UVM 实战 (UVM)): [Notes/UVM/UVM.md](Notes/UVM/UVM.md)
+
+### UVM (通用验证方法学)
+
+- **Simple UVM** (简单的 UVM 验证环境): [UVM/simple_uvm](UVM/simple_uvm)
 
 ### Combinational (组合逻辑)
 
