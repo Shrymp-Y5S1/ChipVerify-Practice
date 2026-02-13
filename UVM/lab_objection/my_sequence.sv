@@ -18,6 +18,7 @@ class my_sequence extends uvm_sequence #(my_transaction);
     repeat (10) begin
       // start_item和finish_item是UVM序列中用于标记事务开始和结束的方法
       // req是uvm_sequence类中预定义的一个变量，用于存储当前的事务对象
+      req = my_transaction::type_id::create("req");
       start_item(req);
       // 随机化事务对象，如果随机化失败则打印错误信息，并结束当前事务
       if (!req.randomize()) `uvm_error("RND", "Randomization failed for transaction")
