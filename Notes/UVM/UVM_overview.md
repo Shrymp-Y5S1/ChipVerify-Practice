@@ -948,11 +948,179 @@ set_inst_override_by_type("original_inst_path", original_class_name:get_type(), 
 
 > [!tip]
 >
-> override的**组件应用**
+> override 的 **组件应用**
 >
 > 将路径为 `my_env.my_agent.my_driv` 的这一个特定组件实例，从 `my_driver` 替换为 `my_driver_count`。
 >
 > ```systemverilog
 > set_inst_override_by_type("my_env.my_agent.my_driv", my_driver::get_type(), my_driver_count::get_type());
 > ```
+
+## UVM 事务级建模
+
+### 基本概念
+
+- **网络数据包**：TCP/IP、WIFI、BlueTooth、NFC
+- **总线事务**：AMBA-AHB/APB/AXI、PCI/PCI-E、UART、I2C、USB
+- **指令集**：X86、ARM、RISCV
+
+**事务级建模**：一系列具有 **一定关系和功能的数据集合**
+
+**事务** 是平台 **各个组件之间通信/信息交互** 的 **基本单元**
+
+- `driver` 接收 `sequencer` 的数据，`sequencer` 接收 `driver` 的响应
+- `monitor` 向 `reference model` 和 `scoreboard` 发送数据
+
+### 事务定义
+
+- `din[15:0]` 是输入端口，即源端口，每一位代表一个输入通道
+- `dout[15:0]` 是输出端口，即目标端口，每一位代表一个输出通道
+- 共有 16X16 个通道
+- `din[n]`、`frame_n[n]` 和 `valid_n[n]` 是一组信号
+- `dout[n]`、`frameo_n[n]` 和 `valido_n[n]` 是一组信号
+
+<img src="./UVM_overview.assets/transaction_example.png" alt="transaction_example" style="zoom: 15%;" />
+
+
+
+1. **从 uvm_sequence_item 扩展事务**：用户定义的 transaction，必须扩展于 **uvm_sequence_item** 或从 **已有的事务类** 扩展
+
+   ```systemverilog
+   class my_transaction extends uvm_sequence_item;
+   class my_transaction_da3 extends my_transaction;
+   ```
+
+2. **受约束的随机事务**：可以为 transaction 的成员指定 `rand` 属性，用于产生随机的激励
+
+   > [!tip]
+   >
+   > - 可以调用 `rand_mode` 手动的关闭 `rand` 属性
+   >
+   >   比如在 `new()` 中使用 `this.sa.randmode(0)`：这样 sa 就不会产生一个随机的值
+   >
+   > - `rand` 属性不是必须的，在 transaction 中可能需要 **其他辅助变量**，这些变量就 **不用指定 rand 属性**
+
+   为成员 **添加 constraint 约束**，使其在随机化时可以产生预期激励。注意在 **继承** 时 **新约束不能与原有约束发生冲突**
+
+   ```systemverilog
+   rand bit [3:0] sa;
+   rand bit [3:0] da;
+   rand reg [7:0] payload[$];
+   
+   constraint Limit {
+       sa inside {[0 : 15]};
+       da inside {[0 : 15]};
+       payload.size() inside {[2 : 4]};
+   }
+   
+   // ----------------------------------------
+   
+   constraint da3 {da == 3;}
+   ```
+
+### UVM field automation 机制
+
+UVM field automation 机制是为了方便用户 **对事务进行打印、复制、打包、解压、比较、记录** 等一系列功能而建立的一套 **服务机制**。
+
+即，可使用 UVM **内建的函数** 对 **事务进行处理**
+
+使用``uvm_field_*`系列宏，为成员添加**field automation**机制
+
+```systemverilog
+rand bit [3:0] sa;
+rand bit [3:0] da;
+rand reg [7:0] payload[$];  // 动态数组
+
+`uvm_object_utils_begin(my_transaction)
+    `uvm_field_int(sa, UVM_ALL_ON)				// 注册普通变量
+    `uvm_field_int(da, UVM_ALL_ON)
+    `uvm_field_queue_int(payload, UVM_ALL_ON)	// 注册动态数组
+`uvm_object_utils_end
+```
+
+> [!tip]
+>
+> 对于 **component 类型** 需要将``uvm_field_*`系列宏包含在以下语句之间
+>
+> ```systemverilog
+> `uvm_component_utils_begin(mytransaction)
+> 	// ...
+> `uvm_component_utils_end
+> ```
+
+若类成员用了 UVM 的 `field automation` 宏，则可使用以下方法（包括对象的复制、比较、打印、打包/解包、记录等操作）来简化 testbench 中对对象的管理
+
+| 方法名      | 功能说明                                                     |
+| ----------- | ------------------------------------------------------------ |
+| **clone**   | **深度复制**：将目标对象完整复制，包括其成员对象（成员对象也会调用自身的 `clone` 方法）。 |
+| **copy**    | **普通复制**：只复制成员句柄，不会递归调用子对象的 `copy` 方法。 |
+| **print**   | **按指定格式打印对象成员**。                                 |
+| **sprint**  | 与 `print` 类似，但 **返回的是字符串** 而不是直接打印。      |
+| **compare** | **深度比较**：对比对象成员的值                               |
+| **pack**    | **将对象成员打包成数据流**                                   |
+| **unpack**  | **从数据流中解包，恢复对象成员**                             |
+| **record**  | **对对象成员进行记录**                                       |
+
+- 这些方法都是 **UVM 提供的自动化机制**，依赖于 `uvm_field_*` 宏来注册成员。
+- **共同点**：**==只对使用了 field automation 注册的成员生效==**。
+
+```systemverilog
+`uvm_field_*(ARG, FLAG)	// 大部分的宏格式相同，除了enum
+
+`uvm_field_int(ARG, FLAG)
+`uvm_field_real(ARG, FLAG)
+`uvm_field_enum(T, ARG, FLAG)
+`uvm_field_object(ARG, FLAG)
+`uvm_field_string(ARG, FLAG)
+`uvm_field_array_enum(ARG, FLAG)
+`uvm_field_array_int(ARG, FLAG)
+`uvm_field_array_string(ARG, FLAG)
+`uvm_field_queue_int(ARG, FLAG)
+`uvm_field_queue_string(ARG, FLAG)
+`uvm_field_aa_int_string(ARG, FLAG)
+`uvm_field_aa_string_string(ARG, FLAG)
+
+`uvm_field_enum(T, ARG, FLAG)	// T: enum名
+```
+
+- `*`：变量类型
+- ARG：变量名
+- FLAG：field automation 机制 **标识符**
+
+**FLAG 的可选参数**
+
+1. **默认参数**
+
+   - **UVM_DEFAULT**：默认配置，部分操作开启，部分关闭。
+
+   - **UVM_ALL_ON**：所有操作都开启。
+
+2. **单独控制参数**（通过 **位掩码** 实现）
+- **UVM_COPY / UVM_NOCOPY**：控制成员是否参与 `copy()` 操作。
+   
+- **UVM_COMPARE / UVM_NOCOMPARE**：控制成员是否参与 `compare()` 操作。
+   
+- **UVM_PRINT / UVM_NOPRINT**：控制成员是否参与 `print()` 操作。
+   
+- **UVM_RECORD / UVM_NORECORD**：控制成员是否参与 `record()` 操作。
+   
+- **UVM_PACK / UVM_NOPACK**：控制成员是否参与 `pack()` 操作。
+
+通过 **位或运算符 `|`** 指定 FLAG 打印和记录时显示 **数据格式**
+
+| FLAG             | 功能                           |
+| ---------------- | ------------------------------ |
+| **UVM_BIN**      | 使用二进制格式打印和记录       |
+| **UVM_DEC**      | 使用十进制格式打印和记录       |
+| **UVM_UNSIGNED** | 使用无符号十进制格式打印和记录 |
+| **UVM_OCT**      | 使用八进制格式打印和记录       |
+| **UVM_HEX**      | 使用十六进制格式打印和记录     |
+| **UVM_STRING**   | 使用字符串格式打印和记录       |
+| **UVM_TIME**     | 使用时间格式打印和记录         |
+| **UVM_REAL**     | 使用实数格式打印和记录         |
+
+```systemverilog
+`uvm_field_int(field, UVM_ALL_ON | UVM_BIN)
+// 该整型成员在所有操作开启的同时，打印时使用二进制格式。
+```
 
