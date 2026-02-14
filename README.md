@@ -6,16 +6,16 @@
 
 ### Projects (工程练习)
 
-- **APB UART** (基于 APB 总线的 UART):  [APB_UART](Project\APB_UART)
-- **AXI**(AXI4 - Full):  [AXI](Project\AXI)
-- **RISC-V**:  [RISC_V](Project\RISC_V)
+- **APB UART** (基于 APB 总线的 UART):  [Project/APB_UART](Project\APB_UART)
+- **AXI**(AXI4 - Full):  [Project/AXI](Project\AXI)
+- **RISC-V**:  [Project/RISC_V](Project\RISC_V)
 
 ### Notes (学习笔记)
 
 - AXI4 Protocol: [Notes/AXI/AXI4.md](Notes/AXI/AXI4.md)
 - SystemVerilog 验证测试平台编写指南（第二版）: [Notes/SV/HVL_SV.md](Notes/SV/HVL_SV.md)
-- UVM 概览 (UVM Overview): [Notes/UVM/UVM_overview.md](Notes/UVM/UVM_overview.md)
-- UVM 实战 (UVM)): [Notes/UVM/UVM.md](Notes/UVM/UVM.md)
+- UVM 概览 (UVM Overview): [Notes/UVM/UVM_overview1](Notes/UVM/UVM_overview/UVM_overview1.md)与[Notes/UVM/UVM_overview2](Notes/UVM/UVM_overview/UVM_overview2.md)
+- UVM 实战 (UVM): [Notes/UVM/UVM.md](Notes/UVM/UVM_combat/UVM.md)
 
 ### UVM (通用验证方法学)
 
