@@ -151,7 +151,7 @@ uvm_config_db#(type)::get(
                         );
 ```
 
-**例 1**：配置 sequence 产生 transaction 的数量
+#### 例 1：配置 sequence 产生 transaction 的数量
 
 ```systemverilog
 class my_test extends uvm_test;
@@ -185,7 +185,7 @@ class my_sequence extends uvm_sequence #(my_transaction);
 endclass
 ```
 
-**例 2**：配置 interface
+#### 例 2：配置 interface
 
 - 首先需要根据 DUT 构建 **interface**
 
@@ -272,7 +272,7 @@ endclass
   endmodule
   ```
 
-**例 3**：配置用户 **自定义的 config 类**
+#### 例 3：配置用户自定义的 config 类
 
 > [!tip]
 >
@@ -524,3 +524,257 @@ endclass
 
 ## UVM sequence 机制
 
+### 基本概念
+
+**控制（产生与发送的时间）** 和 **产生** 一系列的事务，并将 **事务发送给 driver** 的一套机制
+
+sequence 机制是一个 **过程**，**需要消耗仿真时间**，所以此机制使用于 **task phase**
+
+将事务的产生和驱动相互分离，即可存在多个 sequence，实现 driver 的可重用性
+
+- sequence 专门 **产生激励**
+- driver 专门实现 **激励驱动**
+
+<img src="./UVM_overview2.assets/sequence_flow.png" alt="sequence_flow" style="zoom: 23%;" />
+
+> [!tip]
+>
+> **Sequence** 负责“想”数据，把它扔进 **Sequencer** 这个“邮箱”里，然后等着；**Driver** 从“邮箱”里把信拿走，送给 DUT，送完后回来在“邮箱”上盖个章说“送到了”；**Sequence** 看到章盖好了，再开始写下一封信。
+
+### 使用方法
+
+#### driver
+
+- **请求事务**：`seq_item_port.get_next_item(req);`
+- **等待获取事务**：driver 会 **等待**，直到从 sequencer 获取事务，再执行下面的语句
+- **处理事务**
+- **完成事务后给出标志**：`seq_item_port.item_done();`
+- **重新以上步骤**
+
+```systemverilog
+class my_driver extends uvm_driver #(my_transaction);
+    virtual task run_phase(uvm_phase phase);
+        logic [7:0] temp;
+        repeat (15) @(my_vif.driver_cb);
+        forever begin
+            seq_item_port.get_next_item(req);
+            // ... driver the DUT
+            seq_item_port.item_done();
+        end
+    endtask
+endclass
+```
+
+#### sequencer
+
+sequencer 的功能相对 **通用**，**UVM 内部完成 sequencer 的全部功能**
+
+#### sequence
+
+- 产生 items 并放入对应的 sequencer：`start_item(req);`
+- 等待 driver 返回完成标志：`finish_item(req);`
+
+> [!tip]
+>
+> **uvm_do(req)** = **start_item(tr);** + **tr.randomize()** + **finish_item(tr);**
+
+```systemverilog
+class my_sequence extends uvm_sequence #(my_transaction);
+    int item_num = 10;
+
+    virtual task body();
+        // my_transaction tr;
+        if (starting_phase != null) begin
+            starting_phase.raise_objection(this);
+        end
+
+        repeat (item_num) begin
+            `uvm_do(req)
+            // tr = my_transcation::type_id::create("tr");
+            // start_item(tr);
+            // if (!tr.randomize()) `uvm_error("RND", "...")
+            // finish_item(tr);
+        end
+
+        if (starting_phase != null) begin
+            starting_phase.drop_objection(this);
+        end
+    endtask
+endclass
+```
+
+##### uvm_do_* 原理
+
+`uvm_do` 宏本质是一个 **智能的自动化包装器**。主要作用是简化代码，用户不需要关心自己发送的是一个简单的“数据包（Item）”还是一个复杂的“子序列（Sub-sequence）”，宏会自动识别并执行正确的流程。常用的 **uvm_do_***宏系列
+
+```systemverilog
+`uvm_do(SEQ_OR_ITEM)	
+// SEQ_OR_ITEM: 所要产生的item或者sequence的句柄
+`uvm_do_with(SEQ_OR_ITEM, CONSTRAINTS)	
+// CONSTRAINTS: 为item或sequence指定约束项
+`uvm_do_on(SEQ_OR_ITEM, SEQR)	
+// SEQR: 为该item或sequence指定关联的sequencer
+`uvm_do_on_with(SEQ_OR_ITEM, SEQR, CONSTRAINTS)
+```
+
+```mermaid
+flowchart TD
+    %% 定义节点样式
+    classDef process fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef decision fill:#fff9c4,stroke:#fbc02d,stroke-width:2px;
+    classDef startend fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+
+    %% 主流程
+    Start(uvm_do 宏调用) --> Create[根据传入的 SEQ_OR_ITEM 句柄<br/>创建该句柄类型的对象]
+    Create --> Config[为该对象做一些设置]
+    Config --> Check{判断句柄类型?}
+
+    %% 分支 1：Sequence Item
+    Check -- "句柄是 sequence_item 类型" --> ItemFlow
+    subgraph ItemFlow [Sequence Item 执行流程]
+        direction TB
+        Step1[调用 start_item]
+        Step2[随机化 item]
+        Step3[调用 finish_item]
+        
+        Step1 --> Step2 --> Step3
+    end
+
+    %% 分支 2：Sequence
+    Check -- "句柄是 sequence 类型" --> SeqFlow
+    subgraph SeqFlow [Sequence 执行流程]
+        direction TB
+        StepSeq[调用该对象的 start 方法]
+    end
+
+    %% 样式应用
+    class Start startend;
+    class Create,Config,Step1,Step2,Step3,StepSeq process;
+    class Check decision;
+```
+
+##### sequence 启动的方法
+
+- 法 1：配置 sequencer 的 default_sequence
+
+  ```systemverilog
+  uvm_config_db#(uvm_object_wrapper)::set(
+      this,                     // 1. 发起者
+      "*.my_seqr.run_phase",    // 2. 目标路径
+      "default_sequence",       // 3. 关键字
+      my_sequence::get_type()   // 4. 值
+  );
+  ```
+
+- 等价于法 2：在组件中手动启动 sequence（更精细，更常用）
+
+  ```systemverilog
+  task run_phase(uvm_phase phase);
+      my_sequence seq;
+      seq = my_sequence::type_id::create("seq"); // 1. 创建实例
+      seq.start(this); // 2. 挂载到sequencer上启动
+  endtask
+  ```
+
+##### sequence 嵌套
+
+```systemverilog
+class reset_seq extends uvm_sequence #(my_transaction);
+    // ...
+endclass
+
+class write_seq extends uvm_sequence #(my_transaction);
+    // ...
+endclass
+
+class read_seq extends uvm_sequence #(my_transaction);
+    // ...
+endclass
+
+class top_seq extends uvm_sequence #(my_transaction);
+    // ...
+    reset_seq t_seq;
+    write_seq w_seq;
+    read_seq  r_seq;
+
+    virtual task body();	// 按顺序依次执行t_seq, w_seq, r_seq
+        `uvm_do(t_seq)
+        `uvm_do(w_seq)
+        `uvm_do(r_seq)
+    endtask
+endclass
+```
+
+##### sequence 仲裁机制
+
+**同一** sequencer **并发执行多个** sequence 时，需要 **仲裁**
+
+```systemverilog
+`uvm_do_pri(SEQ_OR_ITEM, PRIORITY)
+`uvm_do_pri_with(SEQ_OR_ITEM, PRIORITY, CONSTRAINTS)
+`uvm_do_on_pri(SEQ_OR_ITEM, SEQR, PRIORITY)
+```
+
+`PRIORITY`：为 item 或者 sequence 的指定优先级
+
+```systemverilog
+virtual task body();
+    my_sequencer.set_arbitration(SEQ_ARB_STRICT_FIFO)
+    // SEQ_ARB_STRICT_FIFO: 优先级优先,同级先来后到 (FIFO)
+    fork	// fork并发执行，但实际为t_seq -> r_seq -> w_seq
+        uvm_do_pri(t_seq, 1000)	// 1000权重值
+        uvmn do_pri(w_seq, 50)	// 50权重值
+        uvm_do(r_seq)			// 默认100权重值
+    join
+endtask
+```
+
+其他仲裁算法不再赘述
+
+##### sequence 获取响应
+
+- sequence：收到 driver **完成** 标志 **后**，即有 **获取响应** 的能力
+
+- driver：在 **完成** 事务并给出标志 **前**，即可 **产生响应并关联事务**
+
+```systemverilog
+class my_sequence extends uvm_sequence #(my_transaction);
+    // ...
+    repeat (item_num) begin
+        req = my_transaction::type_id::create("req");
+        start_item(req);
+        req.randomize();
+        finish_item(req);
+        // 获取响应
+        get_response(rsp);  // rsp为泛型继承，无需提前定义
+        // ...
+    end
+endclass
+
+// ----------------------------------------
+
+class my_driver extends uvm_driver #(my_transaction);
+    // ...
+    virtual task run_phase(uvm_phase phase);
+        // ...
+        seq_item_port.get_next_item(req);
+        // driver the DUT
+        
+        // 产生响应，关联事务
+        rsp = my_transaction::type_id::create("rsp");
+        $cast(rsp, req.clone());
+        rsp.set_id_info(req);	// 将Req的ID信息(Seq ID和Tr ID)复制给Rsp，关联事务(Seqr正确的把这个Rsp返回给相应的Seq)
+        seq_item_port.put_response(rsp);	//发送响应
+
+        seq_item_port.item_done();
+    endtask
+endclass
+```
+
+## UVM TLM
+
+> Transaction-Level Modeling，事务级建模
+
+TLM 为组件之间通信建立专门的 **通信信道**，**避免** 通信出现 **混乱**
+
+- 如：保证 reference model 只能从 master agent 的 monitor 获取数据
