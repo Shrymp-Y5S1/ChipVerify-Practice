@@ -1,117 +1,159 @@
 interface axi_interface #(
-    parameter ID_WIDTH    = `AXI_ID_WIDTH,
-    parameter ADDR_WIDTH  = `AXI_ADDR_WIDTH,
-    parameter DATA_WIDTH  = `AXI_DATA_WIDTH,
-    parameter LEN_WIDTH   = `AXI_LEN_WIDTH,
-    parameter SIZE_WIDTH  = `AXI_SIZE_WIDTH,
-    parameter BURST_WIDTH = `AXI_BURST_WIDTH,
-    parameter USER_WIDTH  = `AXI_USER_WIDTH,
+    parameter ID_WIDTH      = `AXI_ID_WIDTH,
+    parameter ADDR_WIDTH    = `AXI_ADDR_WIDTH,
+    parameter DATA_WIDTH    = `AXI_DATA_WIDTH,
+    parameter LEN_WIDTH     = `AXI_LEN_WIDTH,
+    parameter SIZE_WIDTH    = `AXI_SIZE_WIDTH,
+    parameter BURST_WIDTH   = `AXI_BURST_WIDTH,
+    parameter USER_WIDTH    = `AXI_USER_WIDTH,
     parameter MAX_BURST_LEN = 8
-)(input clk, input rst_n);
+) (
+  input clk,
+  input rst_n
+);
 
-    // --------------------------------------------------------
-    // User Interface Signals
-    // --------------------------------------------------------
-    logic user_req_we; // 1=Write, 0=Read
-    logic user_req_valid;
-    logic user_req_ready;
-    logic [`AXI_ID_WIDTH-1:0] user_req_id;
-    logic [`AXI_ADDR_WIDTH-1:0] user_req_addr;
-    logic [`AXI_LEN_WIDTH-1:0] user_req_len;
-    logic [`AXI_SIZE_WIDTH-1:0] user_req_size;
-    logic [`AXI_BURST_WIDTH-1:0] user_req_burst;
-    logic [MAX_BURST_LEN*`AXI_DATA_WIDTH-1:0] user_req_wdata;
-    logic [MAX_BURST_LEN*(`AXI_DATA_WIDTH/8)-1:0] user_req_wstrb;
+  function automatic [ADDR_WIDTH-1:0] calc_end_addr(input [ADDR_WIDTH-1:0] start_addr,
+                                                    input [LEN_WIDTH-1:0] burst_len,
+                                                    input [SIZE_WIDTH-1:0] burst_size);
+    logic [ADDR_WIDTH:0] total_bytes;
+    total_bytes   = ({1'b0, burst_len} + 1'b1);
+    total_bytes   = total_bytes << burst_size;
+    calc_end_addr = start_addr + total_bytes[ADDR_WIDTH-1:0] - 1'b1;
+  endfunction
 
-    // --------------------------------------------------------
-    // AXI Standard Signals
-    // --------------------------------------------------------
-    // Write Address Channel
-    logic [ID_WIDTH-1:0]    awid;
-    logic [ADDR_WIDTH-1:0]  awaddr;
-    logic [LEN_WIDTH-1:0]   awlen;
-    logic [SIZE_WIDTH-1:0]  awsize;
-    logic [BURST_WIDTH-1:0] awburst;
-    logic                   awvalid;
-    logic                   awready;
+  // --------------------------------------------------------
+  // User Interface Signals
+  // --------------------------------------------------------
+  logic                                         user_req_we;  // 1=Write, 0=Read
+  logic                                         user_req_valid;
+  logic                                         user_req_ready;
+  logic [                    `AXI_ID_WIDTH-1:0] user_req_id;
+  logic [                  `AXI_ADDR_WIDTH-1:0] user_req_addr;
+  logic [                   `AXI_LEN_WIDTH-1:0] user_req_len;
+  logic [                  `AXI_SIZE_WIDTH-1:0] user_req_size;
+  logic [                 `AXI_BURST_WIDTH-1:0] user_req_burst;
+  logic [    MAX_BURST_LEN*`AXI_DATA_WIDTH-1:0] user_req_wdata;
+  logic [MAX_BURST_LEN*(`AXI_DATA_WIDTH/8)-1:0] user_req_wstrb;
 
-    // Write Data Channel
-    logic [DATA_WIDTH-1:0]  wdata;
-    logic [DATA_WIDTH/8-1:0] wstrb;
-    logic                   wlast;
-    logic                   wvalid;
-    logic                   wready;
+  // --------------------------------------------------------
+  // AXI Standard Signals
+  // --------------------------------------------------------
+  // Write Address Channel
+  logic [                         ID_WIDTH-1:0] awid;
+  logic [                       ADDR_WIDTH-1:0] awaddr;
+  logic [                        LEN_WIDTH-1:0] awlen;
+  logic [                       SIZE_WIDTH-1:0] awsize;
+  logic [                      BURST_WIDTH-1:0] awburst;
+  logic                                         awvalid;
+  logic                                         awready;
 
-    // Write Response Channel
-    logic [ID_WIDTH-1:0]    bid;
-    logic [1:0]             bresp;
-    logic                   bvalid;
-    logic                   bready;
+  // Write Data Channel
+  logic [                       DATA_WIDTH-1:0] wdata;
+  logic [                     DATA_WIDTH/8-1:0] wstrb;
+  logic                                         wlast;
+  logic                                         wvalid;
+  logic                                         wready;
 
-    // Read Address Channel
-    logic [ID_WIDTH-1:0]    arid;
-    logic [ADDR_WIDTH-1:0]  araddr;
-    logic [LEN_WIDTH-1:0]   arlen;
-    logic [SIZE_WIDTH-1:0]  arsize;
-    logic [BURST_WIDTH-1:0] arburst;
-    logic                   arvalid;
-    logic                   arready;
+  // Write Response Channel
+  logic [                         ID_WIDTH-1:0] bid;
+  logic [                                  1:0] bresp;
+  logic                                         bvalid;
+  logic                                         bready;
 
-    // Read Data Channel
-    logic [ID_WIDTH-1:0]    rid;
-    logic [DATA_WIDTH-1:0]  rdata;
-    logic [1:0]             rresp;
-    logic                   rlast;
-    logic                   rvalid;
-    logic                   rready;
+  // Read Address Channel
+  logic [                         ID_WIDTH-1:0] arid;
+  logic [                       ADDR_WIDTH-1:0] araddr;
+  logic [                        LEN_WIDTH-1:0] arlen;
+  logic [                       SIZE_WIDTH-1:0] arsize;
+  logic [                      BURST_WIDTH-1:0] arburst;
+  logic                                         arvalid;
+  logic                                         arready;
 
-    // --------------------------------------------------------
-    // SVA (协议检查)
-    // --------------------------------------------------------
+  // Read Data Channel
+  logic [                         ID_WIDTH-1:0] rid;
+  logic [                       DATA_WIDTH-1:0] rdata;
+  logic [                                  1:0] rresp;
+  logic                                         rlast;
+  logic                                         rvalid;
+  logic                                         rready;
 
-    // 1. 读通道（AR）稳定性检查
-    property p_stable_araddr;
-        @(posedge clk) disable iff(!rst_n)
-        (arvalid && !arready) |-> $stable({arid, araddr, arlen, arsize, arburst});
-    endproperty
+  // --------------------------------------------------------
+  // SVA (协议检查)
+  // --------------------------------------------------------
 
-    assert_stable_araddr: assert property(p_stable_araddr)
-        else $error("AXI Protocol Violation: ARADDR changed while ARVALID is high and ARREADY is low!");
-
-    // 2. 握手检查：不允许出现了 X 态
-    property p_valid_no_x;
-        @(posedge clk) disable iff(!rst_n)
-        !$isunknown(arvalid) && !$isunknown(rvalid);
-    endproperty
-
-    assert_valid_no_x: assert property(p_valid_no_x)
-        else $error("AXI Protocol Violation: VALID signal has X state!");
-
-    // 3. 写通道 (AW) 稳定性检查
-    property p_stable_awaddr;
-        @(posedge clk) disable iff(!rst_n)
-        (awvalid && !awready) |-> $stable({awid, awaddr, awlen, awsize, awburst});
-    endproperty
-    assert_stable_awaddr: assert property(p_stable_awaddr)
-        else $error("AXI Violation: AWADDR/Ctrl changed while AWVALID is high and AWREADY is low!");
-
-    // 4. 写数据 (W) 稳定性检查
-    // 如果 Master 发出数据后 Slave 没收，数据和 Last 信号绝对不能变
-    property p_stable_wdata;
-        @(posedge clk) disable iff(!rst_n)
-        (wvalid && !wready) |-> $stable({wdata, wstrb, wlast});
-    endproperty
-    assert_stable_wdata: assert property(p_stable_wdata)
-        else $error("AXI Violation: WDATA/WLAST changed while WVALID is high and WREADY is low!");
-
-    // ----------------------------------------
-    // Modport
-    // ----------------------------------------
-    // Driver 视角的 Modport
-    modport DRV (
-        input  clk, rst_n, user_req_ready,
-        output user_req_we, user_req_valid, user_req_id, user_req_addr, user_req_len,
-               user_req_size, user_req_burst, user_req_wdata, user_req_wstrb
+  // 1. 读通道（AR）稳定性检查
+  property p_stable_araddr;
+    @(posedge clk) disable iff (!rst_n) (arvalid && !arready) |-> $stable(
+        {arid, araddr, arlen, arsize, arburst}
     );
+  endproperty
+
+  assert_stable_araddr :
+  assert property (p_stable_araddr)
+  else $error("AXI Protocol Violation: ARADDR changed while ARVALID is high and ARREADY is low!");
+
+  // 2. 握手检查：不允许出现了 X 态
+  property p_valid_no_x;
+    @(posedge clk) disable iff (!rst_n) !$isunknown(
+        arvalid
+    ) && !$isunknown(
+        rvalid
+    );
+  endproperty
+
+  assert_valid_no_x :
+  assert property (p_valid_no_x)
+  else $error("AXI Protocol Violation: VALID signal has X state!");
+
+  // 3. 写通道 (AW) 稳定性检查
+  property p_stable_awaddr;
+    @(posedge clk) disable iff (!rst_n) (awvalid && !awready) |-> $stable(
+        {awid, awaddr, awlen, awsize, awburst}
+    );
+  endproperty
+  assert_stable_awaddr :
+  assert property (p_stable_awaddr)
+  else $error("AXI Violation: AWADDR/Ctrl changed while AWVALID is high and AWREADY is low!");
+
+  // 4. 写数据 (W) 稳定性检查
+  // 如果 Master 发出数据后 Slave 没收，数据和 Last 信号绝对不能变
+  property p_stable_wdata;
+    @(posedge clk) disable iff (!rst_n) (wvalid && !wready) |-> $stable(
+        {wdata, wstrb, wlast}
+    );
+  endproperty
+  assert_stable_wdata :
+  assert property (p_stable_wdata)
+  else $error("AXI Violation: WDATA/WLAST changed while WVALID is high and WREADY is low!");
+
+  // 5. 4KB 边界检查：单个 Burst 不能跨 4KB 边界
+  // 结束地址 = 起始地址 + (len+1)*bytes_per_beat - 1
+  property p_aw_no_cross_4k;
+    @(posedge clk) disable iff (!rst_n) (awvalid && awready) |-> ((awaddr >> 12) == (calc_end_addr(
+        awaddr, awlen, awsize
+    ) >> 12));
+  endproperty
+  assert_aw_no_cross_4k :
+  assert property (p_aw_no_cross_4k)
+  else $error("AXI Violation: AW burst crosses 4KB boundary!");
+
+  property p_ar_no_cross_4k;
+    @(posedge clk) disable iff (!rst_n) (arvalid && arready) |-> ((araddr >> 12) == (calc_end_addr(
+        araddr, arlen, arsize
+    ) >> 12));
+  endproperty
+  assert_ar_no_cross_4k :
+  assert property (p_ar_no_cross_4k)
+  else $error("AXI Violation: AR burst crosses 4KB boundary!");
+
+  // ----------------------------------------
+  // Modport
+  // ----------------------------------------
+  // Driver 视角的 Modport
+  modport DRV(
+      input clk, rst_n, user_req_ready,
+      output user_req_we, user_req_valid, user_req_id, user_req_addr, user_req_len, user_req_size,
+          user_req_burst, user_req_wdata, user_req_wstrb
+  );
 
 endinterface
