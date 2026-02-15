@@ -118,10 +118,6 @@ module axi_mst_rd #(
     .pointer_o(rd_ptr_clr_r)
   );
 
-  //   assign arbit_req_masked = (axi_mst_arvalid && !axi_mst_arready) ?
-  //       (rd_req_bits & (1'b1 << rd_ptr_req_r)) :  // 锁住当前选择
-  //       rd_req_bits;  // 开放所有请求
-
   axi_arbit #(
     .ARB_WIDTH(OST_DEPTH)
   ) u_rd_req_arbit (

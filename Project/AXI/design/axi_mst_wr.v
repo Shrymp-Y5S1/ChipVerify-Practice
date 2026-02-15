@@ -383,7 +383,7 @@ module axi_mst_wr #(
     .push_ptr  (aw_out_ptr_r),
     .pop       (axi_mst_bvalid & axi_mst_bready),
     .pop_id    (axi_mst_bid),
-    .pop_last  (1'b1),                             // bresp only once
+    .pop_last  (1'b1),
     .order_ptr (wr_ptr_result),
     .order_bits()
   );
