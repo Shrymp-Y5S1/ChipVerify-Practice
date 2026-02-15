@@ -13,4 +13,5 @@
 ./verify/axi_stress_test.sv
 ./verify/axi_full_test.sv
 ./verify/axi_4k_boundary_test.sv
+./verify/axi_unaligned_strobe_test.sv
 ./verify/tb_axi_mst.sv
