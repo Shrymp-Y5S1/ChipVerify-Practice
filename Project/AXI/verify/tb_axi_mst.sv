@@ -112,11 +112,40 @@ module tb_axi_mst;
   // Slave 存储所有写入的数据
   byte slave_mem[longint];
 
+  function automatic longint calc_next_addr(
+      input longint curr_addr, input longint start_addr, input logic [`AXI_BURST_WIDTH-1:0] burst,
+      input logic [`AXI_SIZE_WIDTH-1:0] size, input logic [`AXI_LEN_WIDTH-1:0] len);
+    int     num_bytes;
+    int     burst_len;
+    longint wrap_size;
+    longint wrap_base;
+    longint next_addr;
+
+    num_bytes = (1 << size);
+    burst_len = len + 1;
+
+    case (burst)
+      `AXI_BURST_FIXED: calc_next_addr = curr_addr;
+
+      `AXI_BURST_WRAP: begin
+        wrap_size = num_bytes * burst_len;
+        wrap_base = (start_addr / wrap_size) * wrap_size;
+        next_addr = curr_addr + num_bytes;
+        if (next_addr >= (wrap_base + wrap_size)) calc_next_addr = wrap_base;
+        else calc_next_addr = next_addr;
+      end
+
+      default: calc_next_addr = curr_addr + num_bytes;  // INCR
+    endcase
+  endfunction
+
   // --- Write Channel Logic ---
 
   typedef struct {
     logic [`AXI_ID_WIDTH-1:0]    id;
+    logic [`AXI_SIZE_WIDTH-1:0]  size;
     logic [`AXI_ADDR_WIDTH-1:0]  addr;
+    logic [`AXI_ADDR_WIDTH-1:0]  start_addr;
     logic [`AXI_LEN_WIDTH-1:0]   len;
     logic [`AXI_BURST_WIDTH-1:0] burst;
   } aw_req_t;
@@ -137,10 +166,12 @@ module tb_axi_mst;
       @(posedge clk);
       if (if0.awvalid && if0.awready) begin
         aw_req_t req;
-        req.id    = if0.awid;
-        req.addr  = if0.awaddr;
-        req.len   = if0.awlen;
-        req.burst = if0.awburst;
+        req.id         = if0.awid;
+        req.size       = if0.awsize;
+        req.addr       = if0.awaddr;
+        req.start_addr = if0.awaddr;
+        req.len        = if0.awlen;
+        req.burst      = if0.awburst;
         aw_fifo.push_back(req);
       end
     end
@@ -172,12 +203,14 @@ module tb_axi_mst;
       if (aw_fifo.size() > 0 && w_fifo.size() > 0) begin
         aw_req_t curr_aw;
         w_req_t  curr_w;
+        int      beat_bytes;
 
-        curr_aw = aw_fifo[0];  // Peek AW (不要Pop，因为要处理多个Beat)
-        curr_w  = w_fifo.pop_front();  // Pop W (消耗一个Beat)
+        curr_aw    = aw_fifo[0];  // Peek AW (不要Pop，因为要处理多个Beat)
+        curr_w     = w_fifo.pop_front();  // Pop W (消耗一个Beat)
+        beat_bytes = (1 << curr_aw.size);
 
         // 写入内存
-        for (int b = 0; b < 4; b++) begin
+        for (int b = 0; b < beat_bytes; b++) begin
           if (curr_w.strb[b]) begin
             slave_mem[curr_aw.addr+b] = (curr_w.data >> (b * 8)) & 8'hFF;
             // 调试打印
@@ -185,10 +218,9 @@ module tb_axi_mst;
           end
         end
 
-        // 更新 AW 的地址 (INCR模式)
-        if (curr_aw.burst == `AXI_BURST_INCR) begin
-          aw_fifo[0].addr = curr_aw.addr + 4;
-        end
+        // 更新 AW 的地址 (支持 FIXED/INCR/WRAP)
+        aw_fifo[0].addr = calc_next_addr(curr_aw.addr, curr_aw.start_addr, curr_aw.burst,
+                                         curr_aw.size, curr_aw.len);
 
         // 如果是 Last Beat，说明这个 AW 处理完了
         if (curr_w.last) begin
@@ -211,8 +243,10 @@ module tb_axi_mst;
 
   typedef struct {
     logic [`AXI_ID_WIDTH-1:0]    id;
+    logic [`AXI_SIZE_WIDTH-1:0]  size;
     logic [`AXI_LEN_WIDTH-1:0]   len;
     logic [`AXI_ADDR_WIDTH-1:0]  addr;
+    logic [`AXI_ADDR_WIDTH-1:0]  start_addr;
     logic [`AXI_BURST_WIDTH-1:0] burst;
   } ar_req_t;
 
@@ -224,10 +258,12 @@ module tb_axi_mst;
       @(posedge clk);
       if (if0.arvalid && if0.arready) begin
         ar_req_t req;
-        req.id    = if0.arid;
-        req.len   = if0.arlen;
-        req.addr  = if0.araddr;
-        req.burst = if0.arburst;
+        req.id         = if0.arid;
+        req.size       = if0.arsize;
+        req.len        = if0.arlen;
+        req.addr       = if0.araddr;
+        req.start_addr = if0.araddr;
+        req.burst      = if0.arburst;
         ar_queue.push_back(req);
       end
     end
@@ -243,8 +279,10 @@ module tb_axi_mst;
       if (ar_queue.size() > 0) begin
         ar_req_t req;
         longint  curr_addr;
-        req       = ar_queue.pop_front();
-        curr_addr = req.addr;
+        int      beat_bytes;
+        req        = ar_queue.pop_front();
+        curr_addr  = req.addr;
+        beat_bytes = (1 << req.size);
 
         repeat (2) @(posedge clk);  // Latency
 
@@ -253,8 +291,8 @@ module tb_axi_mst;
           logic [31:0] rdata_temp;
           rdata_temp = 0;
 
-          // 从 slave_mem 读取 4 字节
-          for (int b = 0; b < 4; b++) begin
+          // 从 slave_mem 读取每拍有效字节
+          for (int b = 0; b < beat_bytes; b++) begin
             if (slave_mem.exists(curr_addr + b)) rdata_temp[b*8+:8] = slave_mem[curr_addr+b];
             else rdata_temp[b*8+:8] = 0;  // 默认 0
           end
@@ -269,7 +307,7 @@ module tb_axi_mst;
           while (!if0.rready) @(posedge clk);
 
           // 更新地址
-          if (req.burst == `AXI_BURST_INCR) curr_addr += 4;
+          curr_addr = calc_next_addr(curr_addr, req.start_addr, req.burst, req.size, req.len);
         end
 
         if0.rvalid <= 0;
