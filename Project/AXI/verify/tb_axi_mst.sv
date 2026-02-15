@@ -27,8 +27,8 @@ module tb_axi_mst;
   // 2. Interface & DUT
   // ----------------------------------------------------------------
   axi_interface if0 (
-      clk,
-      rst_n
+    clk,
+    rst_n
   );
 
   // 中间信号
@@ -37,71 +37,71 @@ module tb_axi_mst;
 
   // DUT: Read Master
   axi_mst_rd #(
-      .OST_DEPTH(16)
+    .OST_DEPTH(16)
   ) u_rd (
-      .clk            (clk),
-      .rst_n          (rst_n),
-      .rd_en          (1'b1),
-      .user_req_valid (if0.user_req_valid && !if0.user_req_we),
-      .user_req_ready (rd_ready_out),
-      .user_req_id    (if0.user_req_id),
-      .user_req_addr  (if0.user_req_addr),
-      .user_req_len   (if0.user_req_len),
-      .user_req_size  (if0.user_req_size),
-      .user_req_burst (if0.user_req_burst),
-      .axi_mst_arid   (if0.arid),
-      .axi_mst_araddr (if0.araddr),
-      .axi_mst_arlen  (if0.arlen),
-      .axi_mst_arsize (if0.arsize),
-      .axi_mst_arburst(if0.arburst),
-      .axi_mst_arvalid(if0.arvalid),
-      .axi_mst_arready(if0.arready),
-      .axi_mst_rid    (if0.rid),
-      .axi_mst_rdata  (if0.rdata),
-      .axi_mst_rresp  (if0.rresp),
-      .axi_mst_rlast  (if0.rlast),
-      .axi_mst_rvalid (if0.rvalid),
-      .axi_mst_rready (if0.rready),
-      .axi_mst_aruser (),
-      .axi_mst_ruser  (0)
+    .clk            (clk),
+    .rst_n          (rst_n),
+    .rd_en          (1'b1),
+    .user_req_valid (if0.user_req_valid && !if0.user_req_we),
+    .user_req_ready (rd_ready_out),
+    .user_req_id    (if0.user_req_id),
+    .user_req_addr  (if0.user_req_addr),
+    .user_req_len   (if0.user_req_len),
+    .user_req_size  (if0.user_req_size),
+    .user_req_burst (if0.user_req_burst),
+    .axi_mst_arid   (if0.arid),
+    .axi_mst_araddr (if0.araddr),
+    .axi_mst_arlen  (if0.arlen),
+    .axi_mst_arsize (if0.arsize),
+    .axi_mst_arburst(if0.arburst),
+    .axi_mst_arvalid(if0.arvalid),
+    .axi_mst_arready(if0.arready),
+    .axi_mst_rid    (if0.rid),
+    .axi_mst_rdata  (if0.rdata),
+    .axi_mst_rresp  (if0.rresp),
+    .axi_mst_rlast  (if0.rlast),
+    .axi_mst_rvalid (if0.rvalid),
+    .axi_mst_rready (if0.rready),
+    .axi_mst_aruser (),
+    .axi_mst_ruser  (0)
   );
 
   // DUT: Write Master
   axi_mst_wr #(
-      .OST_DEPTH(16),
-      .MAX_BURST_LEN(8)
+    .OST_DEPTH    (16),
+    .MAX_BURST_LEN(8)
   ) u_wr (
-      .clk            (clk),
-      .rst_n          (rst_n),
-      .wr_en          (1'b1),
-      .user_req_valid (if0.user_req_valid && if0.user_req_we),
-      .user_req_ready (wr_ready_out),
-      .user_req_id    (if0.user_req_id),
-      .user_req_addr  (if0.user_req_addr),
-      .user_req_len   (if0.user_req_len),
-      .user_req_size  (if0.user_req_size),
-      .user_req_burst (if0.user_req_burst),
-      .user_req_wdata (if0.user_req_wdata),
-      .user_req_wstrb (if0.user_req_wstrb),
-      .axi_mst_awid   (if0.awid),
-      .axi_mst_awaddr (if0.awaddr),
-      .axi_mst_awlen  (if0.awlen),
-      .axi_mst_awsize (if0.awsize),
-      .axi_mst_awburst(if0.awburst),
-      .axi_mst_awvalid(if0.awvalid),
-      .axi_mst_awready(if0.awready),
-      .axi_mst_wdata  (if0.wdata),
-      .axi_mst_wstrb  (if0.wstrb),
-      .axi_mst_wlast  (if0.wlast),
-      .axi_mst_wvalid (if0.wvalid),
-      .axi_mst_wready (if0.wready),
-      .axi_mst_bid    (if0.bid),
-      .axi_mst_bresp  (if0.bresp),
-      .axi_mst_bvalid (if0.bvalid),
-      .axi_mst_bready (if0.bready),
-      .axi_mst_awuser (),
-      .axi_mst_wuser  (),
-      .axi_mst_buser  (0)
+    .clk            (clk),
+    .rst_n          (rst_n),
+    .wr_en          (1'b1),
+    .user_req_valid (if0.user_req_valid && if0.user_req_we),
+    .user_req_ready (wr_ready_out),
+    .user_req_id    (if0.user_req_id),
+    .user_req_addr  (if0.user_req_addr),
+    .user_req_len   (if0.user_req_len),
+    .user_req_size  (if0.user_req_size),
+    .user_req_burst (if0.user_req_burst),
+    .user_req_wdata (if0.user_req_wdata),
+    .user_req_wstrb (if0.user_req_wstrb),
+    .axi_mst_awid   (if0.awid),
+    .axi_mst_awaddr (if0.awaddr),
+    .axi_mst_awlen  (if0.awlen),
+    .axi_mst_awsize (if0.awsize),
+    .axi_mst_awburst(if0.awburst),
+    .axi_mst_awvalid(if0.awvalid),
+    .axi_mst_awready(if0.awready),
+    .axi_mst_wdata  (if0.wdata),
+    .axi_mst_wstrb  (if0.wstrb),
+    .axi_mst_wlast  (if0.wlast),
+    .axi_mst_wvalid (if0.wvalid),
+    .axi_mst_wready (if0.wready),
+    .axi_mst_bid    (if0.bid),
+    .axi_mst_bresp  (if0.bresp),
+    .axi_mst_bvalid (if0.bvalid),
+    .axi_mst_bready (if0.bready),
+    .axi_mst_awuser (),
+    .axi_mst_wuser  (),
+    .axi_mst_buser  (0)
   );
 
   assign if0.user_req_ready = if0.user_req_we ? wr_ready_out : rd_ready_out;
@@ -115,23 +115,23 @@ module tb_axi_mst;
   // --- Write Channel Logic ---
 
   typedef struct {
-    logic [`AXI_ID_WIDTH-1:0] id;
-    logic [`AXI_ADDR_WIDTH-1:0] addr;
-    logic [`AXI_LEN_WIDTH-1:0] len;
+    logic [`AXI_ID_WIDTH-1:0]    id;
+    logic [`AXI_ADDR_WIDTH-1:0]  addr;
+    logic [`AXI_LEN_WIDTH-1:0]   len;
     logic [`AXI_BURST_WIDTH-1:0] burst;
   } aw_req_t;
 
   // W 通道数据结构
   typedef struct {
-    logic [`AXI_DATA_WIDTH-1:0] data;
+    logic [`AXI_DATA_WIDTH-1:0]     data;
     logic [(`AXI_DATA_WIDTH/8)-1:0] strb;
-    logic last;
+    logic                           last;
   } w_req_t;
 
   aw_req_t aw_fifo[$];
   w_req_t  w_fifo [$];
 
-  // 3.1 接收 AW 请求 -> 存入 AW FIFO
+  // 接收 AW 请求 -> 存入 AW FIFO
   initial begin
     forever begin
       @(posedge clk);
@@ -146,7 +146,7 @@ module tb_axi_mst;
     end
   end
 
-  // 3.2 接收 W 数据 -> 存入 W FIFO
+  // 接收 W 数据 -> 存入 W FIFO
   initial begin
     forever begin
       @(posedge clk);
@@ -160,7 +160,7 @@ module tb_axi_mst;
     end
   end
 
-  // 3.3 核心处理线程：匹配 AW 和 W 并写入 Memory
+  // 匹配 AW 和 W 并写入 Memory
   initial begin
     if0.bvalid = 0;
     if0.bid    = 0;
@@ -210,15 +210,15 @@ module tb_axi_mst;
   // --- Read Channel Logic ---
 
   typedef struct {
-    logic [`AXI_ID_WIDTH-1:0] id;
-    logic [`AXI_LEN_WIDTH-1:0] len;
-    logic [`AXI_ADDR_WIDTH-1:0] addr;
+    logic [`AXI_ID_WIDTH-1:0]    id;
+    logic [`AXI_LEN_WIDTH-1:0]   len;
+    logic [`AXI_ADDR_WIDTH-1:0]  addr;
     logic [`AXI_BURST_WIDTH-1:0] burst;
   } ar_req_t;
 
   ar_req_t ar_queue[$];
 
-  // 3.3 接收 AR 请求
+  // 接收 AR 请求
   initial begin
     forever begin
       @(posedge clk);
@@ -233,7 +233,7 @@ module tb_axi_mst;
     end
   end
 
-  // 3.4 发送 R 数据 (从 Memory 读取)
+  // 发送 R 数据 (从 Memory 读取)
   initial begin
     if0.rvalid = 0;
     if0.rlast  = 0;
