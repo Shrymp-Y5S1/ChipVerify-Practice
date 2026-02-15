@@ -160,6 +160,13 @@ module tb_axi_mst;
   aw_req_t aw_fifo[$];
   w_req_t  w_fifo [$];
 
+  typedef struct {
+    logic [`AXI_ID_WIDTH-1:0]   id;
+    logic [`AXI_RESP_WIDTH-1:0] resp;
+  } b_rsp_t;
+
+  b_rsp_t b_rsp_q[$];
+
   // 接收 AW 请求 -> 存入 AW FIFO
   initial begin
     forever begin
@@ -193,9 +200,6 @@ module tb_axi_mst;
 
   // 匹配 AW 和 W 并写入 Memory
   initial begin
-    if0.bvalid = 0;
-    if0.bid    = 0;
-
     forever begin
       @(posedge clk);
 
@@ -226,15 +230,43 @@ module tb_axi_mst;
         if (curr_w.last) begin
           void'(aw_fifo.pop_front());  // 移除 AW
 
-          // 发送 B 响应
-          if0.bvalid <= 1;
-          if0.bid    <= curr_aw.id;
-          if0.bresp  <= 0;  // OKAY
-
-          @(posedge clk);
-          while (!if0.bready) @(posedge clk);
-          if0.bvalid <= 0;
+          // 入队写响应，后续可乱序发送
+          b_rsp_t rsp;
+          rsp.id   = curr_aw.id;
+          rsp.resp = `AXI_RESP_OKAY;
+          b_rsp_q.push_back(rsp);
         end
+      end
+    end
+  end
+
+  // 乱序发送 B 响应
+  initial begin
+    if0.bvalid = 0;
+    if0.bid    = 0;
+    if0.bresp  = 0;
+
+    forever begin
+      @(posedge clk);
+
+      if (!rst_n) begin
+        if0.bvalid <= 0;
+      end
+      else if (!if0.bvalid && b_rsp_q.size() > 0) begin
+        int     sel;
+        b_rsp_t rsp;
+
+        sel = $urandom_range(0, b_rsp_q.size() - 1);
+        rsp = b_rsp_q[sel];
+        b_rsp_q.delete(sel);
+
+        if0.bvalid <= 1;
+        if0.bid    <= rsp.id;
+        if0.bresp  <= rsp.resp;
+
+        @(posedge clk);
+        while (!if0.bready) @(posedge clk);
+        if0.bvalid <= 0;
       end
     end
   end
@@ -251,6 +283,19 @@ module tb_axi_mst;
   } ar_req_t;
 
   ar_req_t ar_queue[$];
+
+  typedef struct {
+    logic [`AXI_ID_WIDTH-1:0]    id;
+    logic [`AXI_SIZE_WIDTH-1:0]  size;
+    logic [`AXI_LEN_WIDTH-1:0]   len;
+    logic [`AXI_ADDR_WIDTH-1:0]  addr;
+    logic [`AXI_ADDR_WIDTH-1:0]  start_addr;
+    logic [`AXI_BURST_WIDTH-1:0] burst;
+    int                          beat_idx;
+    int                          delay_cnt;
+  } rd_ctx_t;
+
+  rd_ctx_t rd_active_q[$];
 
   // 接收 AR 请求
   initial begin
@@ -269,49 +314,97 @@ module tb_axi_mst;
     end
   end
 
-  // 发送 R 数据 (从 Memory 读取)
+  // 发送 R 数据 (支持 OoO + Beat-level Interleaving)
   initial begin
     if0.rvalid = 0;
     if0.rlast  = 0;
+    if0.rid    = 0;
+    if0.rdata  = 0;
+    if0.rresp  = 0;
 
     forever begin
       @(posedge clk);
-      if (ar_queue.size() > 0) begin
-        ar_req_t req;
-        longint  curr_addr;
-        int      beat_bytes;
-        req        = ar_queue.pop_front();
-        curr_addr  = req.addr;
-        beat_bytes = (1 << req.size);
-
-        repeat (2) @(posedge clk);  // Latency
-
-        // Burst Loop
-        for (int i = 0; i <= req.len; i++) begin
-          logic [31:0] rdata_temp;
-          rdata_temp = 0;
-
-          // 从 slave_mem 读取每拍有效字节
-          for (int b = 0; b < beat_bytes; b++) begin
-            if (slave_mem.exists(curr_addr + b)) rdata_temp[b*8+:8] = slave_mem[curr_addr+b];
-            else rdata_temp[b*8+:8] = 0;  // 默认 0
-          end
-
-          if0.rvalid <= 1;
-          if0.rid    <= req.id;
-          if0.rdata  <= rdata_temp;
-          if0.rresp  <= 0;
-          if0.rlast  <= (i == req.len);
-
-          @(posedge clk);
-          while (!if0.rready) @(posedge clk);
-
-          // 更新地址
-          curr_addr = calc_next_addr(curr_addr, req.start_addr, req.burst, req.size, req.len);
-        end
-
+      if (!rst_n) begin
         if0.rvalid <= 0;
         if0.rlast  <= 0;
+        rd_active_q.delete();
+      end
+      else begin
+        // 持续吸收 AR 请求到 active context
+        while (ar_queue.size() > 0) begin
+          ar_req_t req;
+          rd_ctx_t ctx;
+
+          req            = ar_queue.pop_front();
+
+          ctx.id         = req.id;
+          ctx.size       = req.size;
+          ctx.len        = req.len;
+          ctx.addr       = req.addr;
+          ctx.start_addr = req.start_addr;
+          ctx.burst      = req.burst;
+          ctx.beat_idx   = 0;
+          ctx.delay_cnt  = $urandom_range(0, 2);
+
+          rd_active_q.push_back(ctx);
+        end
+
+        // 延迟计数递减
+        foreach (rd_active_q[i]) begin
+          if (rd_active_q[i].delay_cnt > 0) rd_active_q[i].delay_cnt--;
+        end
+
+        // 从可发送 context 中随机挑一个，制造 OoO/Interleaving
+        if (!if0.rvalid) begin
+          int             eligible_idx_q[$];
+          int             sel_list_idx;
+          int             sel;
+          rd_ctx_t        curr_ctx;
+          int             beat_bytes;
+          logic    [31:0] rdata_temp;
+
+          foreach (rd_active_q[i]) begin
+            if (rd_active_q[i].delay_cnt == 0) eligible_idx_q.push_back(i);
+          end
+
+          if (eligible_idx_q.size() > 0) begin
+            sel_list_idx = $urandom_range(0, eligible_idx_q.size() - 1);
+            sel          = eligible_idx_q[sel_list_idx];
+            curr_ctx     = rd_active_q[sel];
+            beat_bytes   = (1 << curr_ctx.size);
+            rdata_temp   = 0;
+
+            for (int b = 0; b < beat_bytes; b++) begin
+              if (slave_mem.exists(curr_ctx.addr + b))
+                rdata_temp[b*8+:8] = slave_mem[curr_ctx.addr+b];
+              else rdata_temp[b*8+:8] = 0;
+            end
+
+            if0.rvalid <= 1;
+            if0.rid    <= curr_ctx.id;
+            if0.rdata  <= rdata_temp;
+            if0.rresp  <= `AXI_RESP_OKAY;
+            if0.rlast  <= (curr_ctx.beat_idx == curr_ctx.len);
+
+            @(posedge clk);
+            while (!if0.rready) @(posedge clk);
+
+            if0.rvalid <= 0;
+            if0.rlast  <= 0;
+
+            curr_ctx.addr = calc_next_addr(curr_ctx.addr, curr_ctx.start_addr, curr_ctx.burst,
+                                           curr_ctx.size, curr_ctx.len);
+            curr_ctx.beat_idx++;
+
+            if (curr_ctx.beat_idx > curr_ctx.len) begin
+              rd_active_q.delete(sel);
+            end
+            else begin
+              curr_ctx.delay_cnt = $urandom_range(0, 1);
+              rd_active_q[sel]   = curr_ctx;
+            end
+          end
+        end
       end
     end
   end
