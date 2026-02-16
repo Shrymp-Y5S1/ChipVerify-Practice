@@ -110,7 +110,30 @@ module tb_axi_mst;
   // 3. SLAVE MEMORY MODEL
   // ----------------------------------------------------------------
   // Slave 存储所有写入的数据
-  byte slave_mem[longint];
+  byte slave_mem             [longint];
+
+  int  slave_slverr_pct;
+  int  slave_decerr_pct;
+  int  tb_err_resp_only_mode;
+  int  tb_hs_timeout_cycles;
+  int  b_wait_cycles;
+  int  r_wait_cycles;
+
+  function automatic logic [`AXI_RESP_WIDTH-1:0] gen_slave_resp(
+      input logic [`AXI_ADDR_WIDTH-1:0] addr);
+    int rnd;
+    rnd = $urandom_range(0, 99);
+
+    if (rnd < slave_decerr_pct) begin
+      gen_slave_resp = `AXI_RESP_DECERR;
+    end
+    else if (rnd < (slave_decerr_pct + slave_slverr_pct)) begin
+      gen_slave_resp = `AXI_RESP_SLVERR;
+    end
+    else begin
+      gen_slave_resp = `AXI_RESP_OKAY;
+    end
+  endfunction
 
   function automatic longint calc_next_addr(
       input longint curr_addr, input longint start_addr, input logic [`AXI_BURST_WIDTH-1:0] burst,
@@ -165,7 +188,9 @@ module tb_axi_mst;
     logic [`AXI_RESP_WIDTH-1:0] resp;
   } b_rsp_t;
 
-  b_rsp_t b_rsp_q[$];
+  b_rsp_t b_rsp_q    [$];
+  int     b_rsp_sel;
+  b_rsp_t b_rsp_curr;
 
   // 接收 AW 请求 -> 存入 AW FIFO
   initial begin
@@ -231,10 +256,9 @@ module tb_axi_mst;
           void'(aw_fifo.pop_front());  // 移除 AW
 
           // 入队写响应，后续可乱序发送
-          b_rsp_t rsp;
-          rsp.id   = curr_aw.id;
-          rsp.resp = `AXI_RESP_OKAY;
-          b_rsp_q.push_back(rsp);
+          b_rsp_curr.id   = curr_aw.id;
+          b_rsp_curr.resp = gen_slave_resp(curr_aw.start_addr);
+          b_rsp_q.push_back(b_rsp_curr);
         end
       end
     end
@@ -253,19 +277,24 @@ module tb_axi_mst;
         if0.bvalid <= 0;
       end
       else if (!if0.bvalid && b_rsp_q.size() > 0) begin
-        int     sel;
-        b_rsp_t rsp;
-
-        sel = $urandom_range(0, b_rsp_q.size() - 1);
-        rsp = b_rsp_q[sel];
-        b_rsp_q.delete(sel);
+        b_rsp_sel  = $urandom_range(0, b_rsp_q.size() - 1);
+        b_rsp_curr = b_rsp_q[b_rsp_sel];
+        b_rsp_q.delete(b_rsp_sel);
 
         if0.bvalid <= 1;
-        if0.bid    <= rsp.id;
-        if0.bresp  <= rsp.resp;
+        if0.bid    <= b_rsp_curr.id;
+        if0.bresp  <= b_rsp_curr.resp;
 
         @(posedge clk);
-        while (!if0.bready) @(posedge clk);
+        b_wait_cycles = 0;
+        while (!if0.bready && b_wait_cycles < tb_hs_timeout_cycles) begin
+          @(posedge clk);
+          b_wait_cycles++;
+        end
+        if (!if0.bready) begin
+          $error("[TB_B] Timeout waiting BREADY for ID=%0h after %0d cycles", b_rsp_curr.id,
+                 tb_hs_timeout_cycles);
+        end
         if0.bvalid <= 0;
       end
     end
@@ -291,6 +320,7 @@ module tb_axi_mst;
     logic [`AXI_ADDR_WIDTH-1:0]  addr;
     logic [`AXI_ADDR_WIDTH-1:0]  start_addr;
     logic [`AXI_BURST_WIDTH-1:0] burst;
+    logic [`AXI_RESP_WIDTH-1:0]  resp;
     int                          beat_idx;
     int                          delay_cnt;
   } rd_ctx_t;
@@ -335,6 +365,10 @@ module tb_axi_mst;
           ar_req_t req;
           rd_ctx_t ctx;
 
+          if (tb_err_resp_only_mode && (rd_active_q.size() > 0)) begin
+            break;
+          end
+
           req            = ar_queue.pop_front();
 
           ctx.id         = req.id;
@@ -343,8 +377,10 @@ module tb_axi_mst;
           ctx.addr       = req.addr;
           ctx.start_addr = req.start_addr;
           ctx.burst      = req.burst;
+          ctx.resp       = gen_slave_resp(req.addr);
           ctx.beat_idx   = 0;
-          ctx.delay_cnt  = $urandom_range(0, 2);
+          if (tb_err_resp_only_mode) ctx.delay_cnt = 0;
+          else ctx.delay_cnt = $urandom_range(0, 2);
 
           rd_active_q.push_back(ctx);
         end
@@ -357,6 +393,8 @@ module tb_axi_mst;
         // 从可发送 context 中随机挑一个，制造 OoO/Interleaving
         if (!if0.rvalid) begin
           int             eligible_idx_q[$];
+          int             seen_id_q     [$];
+          bit             id_seen;
           int             sel_list_idx;
           int             sel;
           rd_ctx_t        curr_ctx;
@@ -364,15 +402,28 @@ module tb_axi_mst;
           logic    [31:0] rdata_temp;
 
           foreach (rd_active_q[i]) begin
-            if (rd_active_q[i].delay_cnt == 0) eligible_idx_q.push_back(i);
+            if (rd_active_q[i].delay_cnt == 0) begin
+              id_seen = 0;
+              foreach (seen_id_q[j]) begin
+                if (seen_id_q[j] == rd_active_q[i].id) begin
+                  id_seen = 1;
+                end
+              end
+
+              if (!id_seen) begin
+                eligible_idx_q.push_back(i);
+                seen_id_q.push_back(rd_active_q[i].id);
+              end
+            end
           end
 
           if (eligible_idx_q.size() > 0) begin
-            sel_list_idx = $urandom_range(0, eligible_idx_q.size() - 1);
-            sel          = eligible_idx_q[sel_list_idx];
-            curr_ctx     = rd_active_q[sel];
-            beat_bytes   = (1 << curr_ctx.size);
-            rdata_temp   = 0;
+            if (tb_err_resp_only_mode) sel_list_idx = 0;
+            else sel_list_idx = $urandom_range(0, eligible_idx_q.size() - 1);
+            sel        = eligible_idx_q[sel_list_idx];
+            curr_ctx   = rd_active_q[sel];
+            beat_bytes = (1 << curr_ctx.size);
+            rdata_temp = 0;
 
             for (int b = 0; b < beat_bytes; b++) begin
               if (slave_mem.exists(curr_ctx.addr + b))
@@ -383,11 +434,19 @@ module tb_axi_mst;
             if0.rvalid <= 1;
             if0.rid    <= curr_ctx.id;
             if0.rdata  <= rdata_temp;
-            if0.rresp  <= `AXI_RESP_OKAY;
+            if0.rresp  <= curr_ctx.resp;
             if0.rlast  <= (curr_ctx.beat_idx == curr_ctx.len);
 
             @(posedge clk);
-            while (!if0.rready) @(posedge clk);
+            r_wait_cycles = 0;
+            while (!if0.rready && r_wait_cycles < tb_hs_timeout_cycles) begin
+              @(posedge clk);
+              r_wait_cycles++;
+            end
+            if (!if0.rready) begin
+              $error("[TB_R] Timeout waiting RREADY for ID=%0h after %0d cycles", curr_ctx.id,
+                     tb_hs_timeout_cycles);
+            end
 
             if0.rvalid <= 0;
             if0.rlast  <= 0;
@@ -400,8 +459,9 @@ module tb_axi_mst;
               rd_active_q.delete(sel);
             end
             else begin
-              curr_ctx.delay_cnt = $urandom_range(0, 1);
-              rd_active_q[sel]   = curr_ctx;
+              if (tb_err_resp_only_mode) curr_ctx.delay_cnt = 0;
+              else curr_ctx.delay_cnt = $urandom_range(0, 1);
+              rd_active_q[sel] = curr_ctx;
             end
           end
         end
@@ -418,12 +478,17 @@ module tb_axi_mst;
     forever begin
       @(posedge clk);
       if (rst_n) begin
-        // 30% 概率反压，70% 概率 Ready
-        // std::randomize 也可以，但在模块层级用 randcase 更方便
-        randcase
-          70: if0.awready <= 1;
-          30: if0.awready <= 0;
-        endcase
+        if (tb_err_resp_only_mode) begin
+          if0.awready <= 1;
+        end
+        else begin
+          // 30% 概率反压，70% 概率 Ready
+          // std::randomize 也可以，但在模块层级用 randcase 更方便
+          randcase
+            70: if0.awready <= 1;
+            30: if0.awready <= 0;
+          endcase
+        end
       end
     end
   end
@@ -434,10 +499,15 @@ module tb_axi_mst;
     forever begin
       @(posedge clk);
       if (rst_n) begin
-        randcase
-          70: if0.arready <= 1;
-          30: if0.arready <= 0;
-        endcase
+        if (tb_err_resp_only_mode) begin
+          if0.arready <= 1;
+        end
+        else begin
+          randcase
+            70: if0.arready <= 1;
+            30: if0.arready <= 0;
+          endcase
+        end
       end
     end
   end
@@ -447,11 +517,17 @@ module tb_axi_mst;
     if0.wready = 0;
     forever begin
       @(posedge clk);
-      if (rst_n)
-        randcase
-          70: if0.wready <= 1;
-          30: if0.wready <= 0;
-        endcase
+      if (rst_n) begin
+        if (tb_err_resp_only_mode) begin
+          if0.wready <= 1;
+        end
+        else begin
+          randcase
+            70: if0.wready <= 1;
+            30: if0.wready <= 0;
+          endcase
+        end
+      end
     end
   end
 
@@ -459,6 +535,40 @@ module tb_axi_mst;
   // 5. Config DB & Run
   // ----------------------------------------------------------------
   initial begin
+    string uvm_testname;
+
+    slave_slverr_pct      = 0;
+    slave_decerr_pct      = 0;
+    tb_err_resp_only_mode = 0;
+    tb_hs_timeout_cycles  = 100000;
+
+    if ($value$plusargs("UVM_TESTNAME=%s", uvm_testname)) begin
+      if (uvm_testname == "axi_error_resp_test") begin
+        slave_slverr_pct      = 20;
+        slave_decerr_pct      = 5;
+        tb_err_resp_only_mode = 1;
+      end
+    end
+
+    void'($value$plusargs("SLV_ERR_PCT=%d", slave_slverr_pct));
+    void'($value$plusargs("DEC_ERR_PCT=%d", slave_decerr_pct));
+    void'($value$plusargs("ERR_RESP_ONLY_MODE=%d", tb_err_resp_only_mode));
+    void'($value$plusargs("TB_HS_TIMEOUT=%d", tb_hs_timeout_cycles));
+
+    if (slave_slverr_pct < 0) slave_slverr_pct = 0;
+    if (slave_decerr_pct < 0) slave_decerr_pct = 0;
+    if (slave_slverr_pct > 100) slave_slverr_pct = 100;
+    if (slave_decerr_pct > 100) slave_decerr_pct = 100;
+    if ((slave_slverr_pct + slave_decerr_pct) > 100) begin
+      slave_decerr_pct = 100 - slave_slverr_pct;
+      if (slave_decerr_pct < 0) slave_decerr_pct = 0;
+    end
+
+    if (tb_hs_timeout_cycles <= 0) tb_hs_timeout_cycles = 100000;
+
+    $display("[TB_CFG] SLV_ERR_PCT=%0d DEC_ERR_PCT=%0d ERR_RESP_ONLY_MODE=%0d TB_HS_TIMEOUT=%0d",
+             slave_slverr_pct, slave_decerr_pct, tb_err_resp_only_mode, tb_hs_timeout_cycles);
+
     uvm_config_db#(virtual axi_interface)::set(null, "*", "vif", if0);
     run_test();
   end

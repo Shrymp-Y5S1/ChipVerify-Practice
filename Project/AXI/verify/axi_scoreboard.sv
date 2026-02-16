@@ -29,6 +29,8 @@ class axi_scoreboard extends uvm_scoreboard;
   // 统计计数器
   int                                                       match_count                        = 0;
   int                                                       mismatch_count                     = 0;
+  int                                                       bresp_error_count                  = 0;
+  int                                                       rresp_error_count                  = 0;
 
   // ----------------------------------------------------------------
   // 构造函数
@@ -93,9 +95,11 @@ class axi_scoreboard extends uvm_scoreboard;
     end
     // Case C: 写响应包 (B)
     else if (tr.resp >= 0) begin
-      // 可以在这里检查 B response 是否为 OKAY，或者验证写完成 ID
+      // 开启 BRESP 严格检查
       if (tr.resp != `AXI_RESP_OKAY) begin
-        `uvm_warning("SCB_BRESP", $sformatf("Received Error Response for ID=%0h", tr.id))
+        bresp_error_count++;
+        mismatch_count++;
+        `uvm_error("SCB_BRESP", $sformatf("BRESP Error! ID=%0h Resp=%0b", tr.id, tr.resp))
       end
     end
   endfunction
@@ -122,6 +126,15 @@ class axi_scoreboard extends uvm_scoreboard;
 
       // 取出该 ID 下最早的一个 AR 请求
       ar_tr = ar_map[tr.id].pop_front();
+
+      // 开启 RRESP 严格检查
+      if (tr.resp != `AXI_RESP_OKAY) begin
+        rresp_error_count++;
+        mismatch_count++;
+        `uvm_error("SCB_RRESP", $sformatf("RRESP Error! ID=%0h Addr=%0h Resp=%0b", tr.id,
+                                          ar_tr.addr, tr.resp))
+        return;
+      end
 
       // 执行比对（若与 pending 写冲突，则延迟重试）
       if (compare_data_core(ar_tr, tr, 0)) begin
@@ -343,6 +356,8 @@ class axi_scoreboard extends uvm_scoreboard;
     $display("------------------------------------------------");
     $display(" Total Matches    : %0d", match_count);
     $display(" Total Mismatches : %0d", mismatch_count);
+    $display(" BRESP Errors     : %0d", bresp_error_count);
+    $display(" RRESP Errors     : %0d", rresp_error_count);
     $display("------------------------------------------------\n");
 
     if (mismatch_count == 0 && match_count > 0) $display(">>>> RESULT: [PASSED] <<<<");
