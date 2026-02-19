@@ -1,8 +1,10 @@
 class my_monitor extends uvm_monitor;
   // 从uvm_monitor继承，my_monitor是一个监视器组件类
   `uvm_component_utils(my_monitor)
-  uvm_blocking_put_port #(my_transaction) m2r_port;
-  // 注册类，以便UVM的factory机制能够识别和使用它，注意这里是uvm_component_utils而不是uvm_object_utils，因为my_monitor是一个组件类
+  uvm_blocking_get_imp #(my_transaction) m2r_imp;
+
+  my_transaction
+      tr_fifo[$];  // 定义一个动态数组tr_fifo，用于存储从接口监视到的事务
 
   virtual dut_interface my_vif;  // 声明虚拟接口指针句柄，用于访问接口信号
 
@@ -13,7 +15,7 @@ class my_monitor extends uvm_monitor;
 
   function new(string name = "", uvm_component parent);
     super.new(name, parent);
-    this.m2r_port = new("m2r_port", this);
+    this.m2r_imp = new("m2r_imp", this);
   endfunction
 
   virtual function void build_phase(uvm_phase phase);
@@ -78,8 +80,15 @@ class my_monitor extends uvm_monitor;
       `uvm_info("MONITOR_RUN_PHASE", {"\n", "Monitor got an input transaction: \n", tr.sprint()},
                 UVM_MEDIUM)
       `uvm_info("MONITOR", "Monitor send the transaction to reference model...", UVM_MEDIUM)
-      this.m2r_port.put(tr);
+      tr_fifo.push_back(tr);
     end
+  endtask
+
+  task get(output my_transaction s_tr);
+    while (tr_fifo.size() == 0) @(my_vif.i_monitor_cb);
+    s_tr = tr_fifo.pop_front();
+    `uvm_info("Monitor", {"\n", "Monitor send a transaction to reference model: \n", s_tr.sprint()
+              }, UVM_MEDIUM)
   endtask
 
 endclass

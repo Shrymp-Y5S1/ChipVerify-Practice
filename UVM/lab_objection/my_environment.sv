@@ -3,8 +3,8 @@ class my_environment extends uvm_env;
   // 注册类，以便UVM的factory机制能够识别和使用它
   `uvm_component_utils(my_environment)
   // 为环境内部的组件：agent声明句柄
-  master_agent my_agent;
-  env_config my_env_config;
+  master_agent       my_agent;
+  env_config         my_env_config;
 
   my_reference_model ref_model;
 
@@ -43,7 +43,7 @@ class my_environment extends uvm_env;
   virtual function void connect_phase(uvm_phase phase);
     super.connect_phase(phase);
     `uvm_info("ENV", "Connect the monitor and reference model...", UVM_MEDIUM)
-    my_agent.m_a2r_export.connect(ref_model.i_m2r_imp);
+    ref_model.i_m2r_imp.connect(my_agent.m_a2r_export);
   endfunction
 
 endclass

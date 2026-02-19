@@ -3,13 +3,13 @@ class master_agent extends uvm_agent;
   `uvm_component_utils(master_agent)
 
   // 为agent内部的组件：sequencer、driver和monitor声明句柄
-  my_sequencer my_seqr;
-  my_driver my_driv;
-  my_monitor my_moni;
+  my_sequencer                              my_seqr;
+  my_driver                                 my_driv;
+  my_monitor                                my_moni;
 
-  agent_config my_agent_config;
+  agent_config                              my_agent_config;
 
-  uvm_blocking_put_export #(my_transaction) m_a2r_export;
+  uvm_blocking_get_export #(my_transaction) m_a2r_export;
 
   // 构造函数，默认名称为master_agent，接受一个父组件作为参数
   function new(string name = "master_agent", uvm_component parent);
@@ -50,7 +50,7 @@ class master_agent extends uvm_agent;
       my_driv.seq_item_port.connect(my_seqr.seq_item_export);
       // seq_item_port.connect和seq_item_export是UVM中用于连接组件之间的端口的方法，这里将driver的seq_item_port端口连接到sequencer的seq_item_export端口，使得driver能够从sequencer获取事务
     end
-    my_moni.m2r_port.connect(this.m_a2r_export);
+    this.m_a2r_export.connect(my_moni.m2r_imp);
   endfunction
 
 endclass
