@@ -226,3 +226,25 @@
 **Sequence 的仲裁机制 (`lock` / `grab`)：**
 
 - 学习当多个 sequence 同时想占用驱动器（Driver）时，如何通过设置优先级或强制抢占（grab）来模拟突发事件。
+
+> 你的笔记已经构建了基础环境，但要应对真实复杂的数字 IC 验证项目（如完整的微处理器或复杂总线节点），以下理论是必须要补齐的：
+>
+> **1. RAL（寄存器抽象层）**
+>
+> - **现状：** 你目前的笔记中还没有包含 RAL 的内容。
+> - **重要性：** 正如我们之前讨论的，面对海量的控制寄存器，必须掌握通过前门/后门访问的 RAL 模型。这是接轨企业级项目的基础设施。
+>
+> **2. Virtual Sequence 的代码落地**
+>
+> - **你的笔记：** 在 `UVM_overview3.md` 中以文字形式记录了 Virtual Sequence 是“总指挥”的概念。
+> - **补充方向：** 理论上你需要知道，Virtual Sequence 本身是不产生数据包的，它里面包含的是各个底层 Agent 的 Sequencer 句柄（即 Virtual Sequencer）。你需要学习如何在一个大的 Virtual Sequence 的 `body()` 任务里，去分发、嵌套、协调底层的 Sequence。
+>
+> **3. Reference Model 与 DPI-C（C/C++ 模型接入）**
+>
+> - **你的笔记：** 记录了使用 SystemVerilog 编写 Reference Model 并通过 TLM 通信的逻辑。
+> - **补充方向：** 在验证复杂的算法模块或 RISC-V 等处理器架构时，参考模型通常是 C/C++ 写的（比如指令集模拟器 ISS）。你需要补充 **DPI-C (Direct Programming Interface)** 的知识，学习如何让 UVM 环境（SystemVerilog）调用 C 语言的函数，实现联合仿真。
+>
+> **4. 覆盖率驱动验证 (CDV) 与 SVA**
+>
+> - **补充方向：** UVM 是一个平台，验证的最终验收标准是“覆盖率”。你需要补充如何在UVM中收集功能覆盖率（`covergroup`, `coverpoint`），以及如何将 SVA（SystemVerilog Assertions，断言）与 UVM 环境结合，去监控复杂的时序协议（比如 AXI4 的握手规则）。
+

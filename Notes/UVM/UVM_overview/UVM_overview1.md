@@ -1036,9 +1036,102 @@ set_inst_override_by_type("original_inst_path", original_class_name:get_type(), 
 
 > [!caution]
 >
-> `uvm_field_*` 这些宏在底层展开时会生成极其庞大且低效的代码，严重拖慢仿真速度（在大型项目中可能导致仿真变慢 30%~50%）
+> `uvm_field_*` 这些宏在底层展开时会生成极其**庞大且低效的代码**，严重**拖慢仿真速度**（在大型项目中可能导致仿真变慢 30%~50%）
 >
-> 工业界 ==普遍要求禁止使用 `uvm_field_*` 宏==，而是要求工程师手动重载（Override）`do_copy()`、`do_compare()`、`do_print()` 等核心函数。这不仅执行效率高，而且比对逻辑更可控
+> 工业界 ==普遍要求禁止使用 `uvm_field_*` 宏==，而是要求工程师==手动重载（Override）`do_copy()`、`do_compare()`、`do_print()` 等核心函数==。这不仅执行效率高，而且比对逻辑更可控
+>
+> ```systemverilog
+> // 重点在于我们只注册了类名，完全抛弃了 uvm_field_* 宏，并手动实现了 do_copy、do_compare 和 do_print。
+> `include "uvm_macros.svh"
+> import uvm_pkg::*;
+> 
+> class axi_transaction extends uvm_sequence_item;
+> 
+>     // 1. 定义物理字段
+>     rand bit [3:0]  id;
+>     rand bit [31:0] addr;
+>     rand bit [31:0] data;
+>     rand bit [7:0]  len;
+>     rand bit [1:0]  burst;
+>     
+>     // 2. 定义辅助字段 (通常不需要比较或打包)
+>     rand int delay; // 注入激励时的延迟，不属于协议报文内容
+> 
+>     // 3. 【核心差别】只注册类名，绝对不使用 uvm_field_* 宏
+>     `uvm_object_utils(axi_transaction)
+> 
+>     function new(string name = "axi_transaction");
+>         super.new(name);
+>     endfunction
+> 
+>     // =========================================================================
+>     // 工业级核心：手动实现 do_copy
+>     // =========================================================================
+>     virtual function void do_copy(uvm_object rhs);
+>         axi_transaction tr; // 定义一个同类型的句柄
+>         
+>         // 1. 调用父类的 do_copy (好习惯，复制一些基础属性)
+>         super.do_copy(rhs);
+>         
+>         // 2. 类型转换 (将传入的 uvm_object 转换为当前类型)
+>         // 如果转换失败，说明传进来的不是 axi_transaction 类型，直接报错
+>         if (!$cast(tr, rhs)) begin
+>             `uvm_fatal("DO_COPY", "Cast failed! Provided object is not an axi_transaction.");
+>         end
+>         
+>         // 3. 逐个拷贝字段
+>         this.id    = tr.id;
+>         this.addr  = tr.addr;
+>         this.data  = tr.data;
+>         this.len   = tr.len;
+>         this.burst = tr.burst;
+>         this.delay = tr.delay; // 辅助变量也可以拷贝，视需求而定
+>     endfunction
+> 
+>     // =========================================================================
+>     // 工业级核心：手动实现 do_compare
+>     // =========================================================================
+>     virtual function bit do_compare(uvm_object rhs, uvm_comparer comparer);
+>         axi_transaction tr;
+>         bit result;
+>         
+>         // 1. 调用父类比较，并将结果作为初始值
+>         result = super.do_compare(rhs, comparer);
+>         
+>         // 2. 类型转换
+>         if (!$cast(tr, rhs)) begin
+>             `uvm_fatal("DO_COMPARE", "Cast failed! Provided object is not an axi_transaction.");
+>             return 0;
+>         end
+>         
+>         // 3. 逐个比较核心字段 (灵活控制！)
+>         // 【实战技巧】：这里我们可以选择性地忽略 delay 变量，因为它不影响功能对错
+>         result &= (this.id    == tr.id);
+>         result &= (this.addr  == tr.addr);
+>         result &= (this.data  == tr.data);
+>         result &= (this.len   == tr.len);
+>         result &= (this.burst == tr.burst);
+>         
+>         return result;
+>     endfunction
+> 
+>     // =========================================================================
+>     // 手动实现 do_print (让 Log 更清爽，仿真更快)
+>     // =========================================================================
+>     virtual function void do_print(uvm_printer printer);
+>         super.do_print(printer);
+>         
+>         // 格式：printer.print_field( "字段名", 字段值, 位宽, 进制 )
+>         printer.print_field("id",    this.id,    4,  UVM_HEX);
+>         printer.print_field("addr",  this.addr,  32, UVM_HEX);
+>         printer.print_field("data",  this.data,  32, UVM_HEX);
+>         printer.print_field("len",   this.len,   8,  UVM_DEC);
+>         printer.print_field("burst", this.burst, 2,  UVM_BIN);
+>         printer.print_field("delay", this.delay, 32, UVM_DEC);
+>     endfunction
+> 
+> endclass
+> ```
 
 UVM field automation 机制是为了方便用户 **对事务进行打印、复制、打包、解压、比较、记录** 等一系列功能而建立的一套 **服务机制**。
 
