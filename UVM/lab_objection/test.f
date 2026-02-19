@@ -1,3 +1,5 @@
+./dut_interface.sv
+
 ./my_transaction.sv
 ./my_transaction_da3.sv
 ./my_sequence.sv

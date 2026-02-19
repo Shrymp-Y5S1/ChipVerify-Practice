@@ -1,28 +1,31 @@
-// 从uvm_sequence继承，并指定my_transaction作为序列项的类型
 class my_sequence extends uvm_sequence #(my_transaction);
 
-  // 注册类，以便UVM的factory机制能够识别和使用它
   `uvm_object_utils(my_sequence)
 
-  // 构造函数，默认名称为my_sequence，调用父类的构造函数
+  int item_num = 10;
+
   function new(string name = "my_sequence");
-    super.new(name);  // 调用父类的构造函数
+    super.new(name);
   endfunction
 
-  virtual task body();  // 定义序列的主体任务
-    // 在序列开始时提出异议，防止仿真结束,this指当前序列对象
+  // 在pre_randomize方法中从uvm_config_db获取配置项item_num的值，并将其赋值给item_num变量，这样在序列执行时就会使用这个值来控制生成事务的数量
+  function void pre_randomize();
+    uvm_config_db#(int)::get(my_seqr, "", "item_num", item_num);
+  endfunction
+
+  virtual task body();
     if (starting_phase != null) begin
       starting_phase.raise_objection(this);
     end
 
-    repeat (10) begin
-      // start_item和finish_item是UVM序列中用于标记事务开始和结束的方法
-      // req是uvm_sequence类中预定义的一个变量，用于存储当前的事务对象
+    // 在body方法中使用一个循环来生成和发送事务，循环的次数由item_num变量控制
+    repeat (item_num) begin
       req = my_transaction::type_id::create("req");
       start_item(req);
-      // 随机化事务对象，如果随机化失败则打印错误信息，并结束当前事务
       if (!req.randomize()) `uvm_error("RND", "Randomization failed for transaction")
       finish_item(req);
+
+      get_response(rsp);  // rsp为泛型继承，无需提前定义
     end
 
     #100;
