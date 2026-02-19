@@ -452,6 +452,12 @@ UVM 构建这种逻辑原因：
 
 ### UVM phase 机制
 
+> [!caution]
+>
+> 在包含多个 Agent（甚至数十个 IP）的复杂 SoC 环境中，让所有的组件在这些细分的 12 个 Run-time Phases（如 `pre_reset` 到 `post_shutdown`）中保持严格的时间对齐几乎是不可能的，非常容易导致死锁或 Objection 丢失
+>
+> ==工业界通常 **只使用 `run_phase`**。所有的复位、配置、主测试逻辑，全部交给顶层的 Virtual Sequence 来按时间轴统一调度，环境组件本身不做过于细碎的时间划分。==
+
 #### 基本概念
 
 UVM 中为平台组件定义了一套 **phase 流程** 来控制仿真平台的执行过程
@@ -1026,7 +1032,13 @@ set_inst_override_by_type("original_inst_path", original_class_name:get_type(), 
    constraint da3 {da == 3;}
    ```
 
-### UVM field automation 机制
+### ~~UVM field automation 机制~~
+
+> [!caution]
+>
+> `uvm_field_*` 这些宏在底层展开时会生成极其庞大且低效的代码，严重拖慢仿真速度（在大型项目中可能导致仿真变慢 30%~50%）
+>
+> 工业界 ==普遍要求禁止使用 `uvm_field_*` 宏==，而是要求工程师手动重载（Override）`do_copy()`、`do_compare()`、`do_print()` 等核心函数。这不仅执行效率高，而且比对逻辑更可控
 
 UVM field automation 机制是为了方便用户 **对事务进行打印、复制、打包、解压、比较、记录** 等一系列功能而建立的一套 **服务机制**。
 

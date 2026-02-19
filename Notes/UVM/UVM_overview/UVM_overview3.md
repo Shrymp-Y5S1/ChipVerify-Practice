@@ -2,9 +2,11 @@
 
 ## UVM analysis component
 
-> - Reference model：**模拟 DUT 的行为**，并 **根据输入计算出相应输出** 的组件
+> [!note]
 >
-> - Scoreboard：将 **DUT 的输出** 与从 **参考模型获取的期望值** 相比对，判断 DUT 是否正常工作的组件
+> - **Reference model**：**模拟 DUT 的行为**，并 **根据输入计算出相应输出** 的组件
+>
+> - **Scoreboard**：将 **DUT 的输出** 与从 **参考模型获取的期望值** 相比对，判断 DUT 是否正常工作的组件
 
 - 构建 **slalve agent** 中的 **monitor**
 
@@ -209,4 +211,18 @@
 
 ## UVM callback（后续补充）
 
-> **实际应用场景：** * 一般在开发通用的验证 IP (VIP) 时用得最多。如果你只是**使用**环境，可能不常去定义 Callback；但如果你要**维护或二次开发**一个大型的成熟平台，理解 Callback 机制能让你在不破坏底层架构的前提下“见缝插针”地注入错误（Error Injection）或修改数据。建议初期先理解概念，知道怎么调即可。
+> **实际应用场景：** * 一般在开发通用的验证 IP (VIP) 时用得最多。如果你只是* *使用* *环境，可能不常去定义 Callback；但如果你要* *维护或二次开发**一个大型的成熟平台，理解 Callback 机制能让你在不破坏底层架构的前提下“见缝插针”地注入错误（Error Injection）或修改数据。建议初期先理解概念，知道怎么调即可。
+
+## UVM advanced sequence（后续补充）
+
+**Virtual Sequence 与 Virtual Sequencer：**
+
+- 这是真正用来协调全局环境的“总指挥”。当系统里有多个不同类型的接口时（比如一边发正常数据，一边发控制指令或异常中断），你需要 Virtual Sequence 来调度底层不同 Agent 的 sequence 按照特定时间轴并发或串行执行。
+
+**Sequence 的层级嵌套与 `start()` 方法：**
+
+- 不要依赖隐式的随机，而是要学会在一个大的 Sequence 里面，手动实例化并 `start()` 其他小的 Sequence，像搭积木一样构造复杂的场景（比如针对流水线处理器发送特定依赖关系的指令流）。
+
+**Sequence 的仲裁机制 (`lock` / `grab`)：**
+
+- 学习当多个 sequence 同时想占用驱动器（Driver）时，如何通过设置优先级或强制抢占（grab）来模拟突发事件。

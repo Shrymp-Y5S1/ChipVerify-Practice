@@ -589,11 +589,11 @@ class my_sequence extends uvm_sequence #(my_transaction);
         end
 
         repeat (item_num) begin
-            `uvm_do(req)
-            // tr = my_transcation::type_id::create("tr");
-            // start_item(tr);
-            // if (!tr.randomize()) `uvm_error("RND", "...")
-            // finish_item(tr);
+            // `uvm_do(req)
+            tr = my_transcation::type_id::create("tr");
+            start_item(tr);
+            if (!tr.randomize()) `uvm_error("RND", "...")
+            finish_item(tr);
         end
 
         if (starting_phase != null) begin
@@ -603,7 +603,21 @@ class my_sequence extends uvm_sequence #(my_transaction);
 endclass
 ```
 
-##### uvm_do_* 原理
+##### ~~uvm_do_* 原理~~
+
+> [!caution]
+>
+>  `uvm_do` 宏把太多步骤封装成了黑盒，导致在做复杂的受约束随机化（比如针对特定依赖关系的指令流注入错误）时非常僵硬
+>
+> 大部分资深工程师更偏爱显式地调用 
+>
+> ```systemverilog
+> start_item(req); 
+> req.randomize() with {...}; 
+> finish_item(req);
+> ```
+>
+> 这种写法虽然多写两行代码，但 **可读性和灵活性极佳**
 
 `uvm_do` 宏本质是一个 **智能的自动化包装器**。主要作用是简化代码，用户不需要关心自己发送的是一个简单的“数据包（Item）”还是一个复杂的“子序列（Sub-sequence）”，宏会自动识别并执行正确的流程。常用的 **uvm_do_***宏系列
 
