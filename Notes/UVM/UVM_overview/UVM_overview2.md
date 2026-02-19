@@ -964,7 +964,7 @@ class my_environment extends uvm_env;
 endclass
 ```
 
-- **get模式**：基于put进行修改
+- **get 模式**：基于 put 进行修改
 
 ```systemverilog
 class my_reference_model extends uvm_component;
@@ -1038,7 +1038,7 @@ class my_environment extends uvm_env;
 endclass
 ```
 
-- **fifo模式**
+- **fifo 模式**
 
 ```systemverilog
 class my_reference_model extends uvm_component;
@@ -1121,17 +1121,17 @@ class my_environment extends uvm_env;
 endclass
 ```
 
-### “常用UVM TLM analysis port/imp/export“和“analysis port的使用方法”（精简）
+### “常用 UVM TLM analysis port/imp/export“和“analysis port 的使用方法”（精简）
 
 如果说“普通 TLM 端口”解决了模块间点对点传输数据的需求，那么 **`analysis port`（分析端口）则是构建自动化验证环境的基石**。
 
-在实际项目中，Monitor抓取到总线上的数据后，通常需要把同一个数据发送给多个组件：
+在实际项目中，Monitor 抓取到总线上的数据后，通常需要把同一个数据发送给多个组件：
 
 1. **Scoreboard：** 进行数据比对。
 2. **Coverage Collector：** 收集功能覆盖率。
 3. **Logger/Reference Model：** 打印日志或送给参考模型。
 
-普通的 TLM 端口（如 `put/get`）通常是 **点对点** 的，且往往有 **阻塞**行为（比如 FIFO 满了发送者要等）。而 `analysis port` 完美解决了这两个问题：
+普通的 TLM 端口（如 `put/get`）通常是 **点对点** 的，且往往有 **阻塞** 行为（比如 FIFO 满了发送者要等）。而 `analysis port` 完美解决了这两个问题：
 
 1. **广播模式（一对多）：** 一个 Monitor 可以通过 `analysis port` 连接任意多个接收端。Monitor 发一次，所有连接的组件都能收到。
 2. **非阻塞：** 它的操作是 `void write()`。Monitor 只是“通知”大家“我抓到数据了”，然后立刻继续工作，不需要等待接收端处理完毕。这符合 Monitor 被动监测的特性（不能因为它发数据慢了就漏抓总线信号）。
