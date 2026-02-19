@@ -752,7 +752,6 @@ class my_sequence extends uvm_sequence #(my_transaction);
 endclass
 
 // ----------------------------------------
-
 class my_driver extends uvm_driver #(my_transaction);
     // ...
     virtual task run_phase(uvm_phase phase);
@@ -778,3 +777,434 @@ endclass
 TLM 为组件之间通信建立专门的 **通信信道**，**避免** 通信出现 **混乱**
 
 - 如：保证 reference model 只能从 master agent 的 monitor 获取数据
+
+<img src="./UVM_overview2.assets/TLM_flow.png" alt="TLM_flow" style="zoom: 25%;" />
+
+> [!tip]
+>
+> **调用方法** 在 **port 所在的组件** 完成，**方法实现** 在 **ex/import 所在的组件** 完成（必须实现方法，否则无法通过编译）
+
+### port / import / export
+
+- **Port (发起端):**
+  
+  例如：`uvm_put_port #(T)`， 只需要指定 **Transaction 类型 (T)**
+  
+  ```systemverilog
+  uvm_put_port #(T);
+  uvm_blocking_put_port #(T);
+  uvm_nonblocking_put_port #(T);
+  // get同理
+  ```
+  
+- **Imp (接收端):**
+  
+  例如：`uvm_put_imp #(T, IMP)`，需要指定两个参数：**Transaction 类型 (T)** 和 **实现该接口的组件类型 (IMP)**。`IMP` 参数通常填 `this` 所在的类名。因为 Imp 收到数据后，需要调用 `IMP` 这个类里定义的 `put()` 或 `get()` 函数
+  
+  ```systemverilog
+  uvm_put_imp #(T, IMP);
+  uvm_blocking_put_imp #(T, IMP);
+  uvm_nonblocking_put_imp #(T, IMP);
+  // get同理
+  ```
+
+- **Export (中间端)**
+
+  ```systemverilog
+  uvm_put_export #(T);
+  uvm_blocking_put_export #(T);
+  uvm_nonblocking_put_export #(T);
+  // get同理
+  ```
+
+Port/Imp 分为了三类（Blocking, Non-blocking, 和通用的）
+
+**A. Blocking (阻塞)**
+
+- **关键字:** `uvm_blocking_put_port`, `uvm_blocking_get_port`
+- **对应方法:** `put()`；`get()`
+- **含义:** **Task**。调用会 **消耗仿真时间**
+  - `put()`: 阻塞式发送，如果满会等，直到发送成功
+  - `get()`: 阻塞式接收，如果空会等，直到接收成功
+
+**B. Non-blocking (非阻塞)**
+
+- **关键字:** `uvm_nonblocking_put_port`, `uvm_nonblocking_get_port`
+- **对应方法:** `try_put()`, `can_put()`；`try_get()`, `can_get()`
+- **含义:** **Function**。调用它们 **立刻返回**，不消耗时间
+  - `try_put()`: 非阻塞尝试发送。成功返回 1，失败（满了）返回 0
+  - `can_put()`:  查询是否可发送
+
+**C. 通用模式**
+
+- **关键字:** `uvm_put_port`, `uvm_get_port`
+
+  如果定义了通用的 `uvm_put_port`，那么连接的 Imp 端 **必须同时实现** 阻塞 (`put`) 和 非阻塞 (`try_put`, `can_put`) 的所有方法
+
+| **动作**       | **阻塞 (Task, 死等)** | **非阻塞 (Function, 尝试/查询)** |
+| -------------- | --------------------- | -------------------------------- |
+| **发送 (Put)** | `put()`               | `try_put()`   `can_put()`        |
+| **获取 (Get)** | `get()`               | `try_get()`   `can_get()`        |
+
+```systemverilog
+virtual task put(input T t);
+    `uvm_report_error("PUT", `UVM_TASK_ERROR, UVM_NONE)
+endtask
+virtual function bit try_put(input T t);
+    `uvm_report_error("TRY_PUT", `UVM_FUNC_ERROR, UVM_NONE)
+    return 0;
+endfunction
+virtual function bit can_put(input T t);
+    `uvm_report_error("CAN_PUT", `UVM_FUNC_ERROR, UVM_NONE)
+    return 0;
+endfunction
+// get同理，但传入参数类型为output
+```
+
+在实际应用（如写 Testbench）时：
+
+1. 通常使用 **Blocking (阻塞)** 接口（即 `put()` 和 `get()`），来保持同步。
+2. **Imp 端的写法**：当声明了一个 `uvm_put_imp #(trans, my_consumer)` 时， `my_consumer` 类里 **必须** 显式定义 `task put(trans t); ... endtask`，否则编译会报错。
+
+<img src="./UVM_overview2.assets/port_exp_imp.png" alt="port_exp_imp" style="zoom: 25%;" />
+
+```systemverilog
+class uvm_sequencer #(type REQ=uvm_sequence_item, RSP=REQ) extends uvm_sequencer_param_base #(REQ, RSP);
+    // ...
+    uvm_seq_item_pull_imp #(REQ, RSP, this_type) seq_item_export;
+    // ...
+endclass
+
+// ----------------------------------------
+class my_driver extends uvm_driver #(my_transaction);
+    // ...
+    virtual task run_phase(uvm_phase phase);
+        // ...
+        seq_item_port.get_next_item(req);
+        // ...
+        seq_item_port.item_done();
+        end
+    endtask
+endclass
+
+// ----------------------------------------
+class master_agent extends uvm_agent;
+    my_sequencer my_seqr;
+    my_driver my_driv;
+    // ...
+    virtual function void connect_phase(uvm_phase phase);
+        if (is_active == UVM_ACTIVE) begin
+            my_driv.seq_item_port.connect(my_seqr.seq_item_export);
+        end
+    endfunction
+endclass
+```
+
+### 普通 TLM 端口使用方法
+
+- **put 模式**：例 `monitor -> agent -> env -> ref_model`
+
+```systemverilog
+class my_reference_model extends uvm_component;
+    // ...
+    uvm_blocking_put_imp #(my_transaction, my_reference_model) i_m2r_imp;
+    function new(string name = "", uvm_component parent);
+        super.new(name, parent);
+        this.i_m2r_imp = new("i_m2r_imp", this);
+    endfunction
+    task put(my_transaction tr);
+        `uvm_info("REF_REPORT", "...", UVM_MEDIUM)
+    endtask
+endclass
+
+// ----------------------------------------
+class my_monitor extends uvm_monitor;
+    // ...
+    uvm_blocking_put_port #(my_transaction) m2r_port;
+    // ...
+    function new(string name = "", uvm_component parent);
+        super.new(name, parent);
+        this.m2r_port = new("m2r_port", this);
+    endfunction
+    // ...
+    virtual task run_phase(uvm_phase phase);
+        my_transaction tr;
+        // ... driver the DUT
+        this.m2r_port.put(tr);
+    endtask
+endclass
+
+// ----------------------------------------
+class master_agent extends uvm_agent;
+    // ...
+    my_monitor my_moni;
+    uvm_blocking_put_export #(my_transaction) m_a2r_export;
+    // ...
+    function new(string name = "", uvm_component parent);
+        super.new(name, parent);
+        this.m_a2r_export = new("m_a2r_export", this);
+    endfunction
+    // ...
+    virtual function void connect_phase(uvm_phase phase);
+        // ...
+        my_moni.m2r_port.connect(this.m_a2r_export);
+    endfunction
+endclass
+
+// ----------------------------------------
+class my_environment extends uvm_env;
+    // ...
+    master_agent my_agent;
+    my_reference_model ref_model;
+    // ...
+    virtual function void connect_phase(uvm_phase phase);
+        super.connect_phase(phase);
+        my_agent.m_a2r_export.connect(ref_model.i_m2r_imp);
+    endfunction
+endclass
+```
+
+- **get模式**：基于put进行修改
+
+```systemverilog
+class my_reference_model extends uvm_component;
+    // ...
+    uvm_blocking_get_port #(my_transaction, my_reference_model) i_m2r_port;
+    function new(string name = "", uvm_component parent);
+        super.new(name, parent);
+        this.i_m2r_port = new("i_m2r_port", this);
+    endfunction
+    virtual task run_phase(uvm_phase phase);
+        `uvm_info("REF_MODEL_RUN", "...", UVM_MEDIUM)
+        forever begin
+            i_m2r_port.get(item);
+            `uvm_info("REF_REPORT", {"\n", "...", item.sprint()}, UVM_MEDIUM)
+        end
+    endtask
+endclass
+
+// ----------------------------------------
+class my_monitor extends uvm_monitor;
+    // ...
+    uvm_blocking_get_imp #(my_transaction) m2r_imp;
+    my_transaction tr_fifo[$];
+    // ...
+    function new(string name = "", uvm_component parent);
+        super.new(name, parent);
+        this.m2r_imp = new("m2r_imp", this);
+    endfunction
+    // ...
+    virtual task run_phase(uvm_phase phase);
+        my_transaction tr;
+        // ... driver the DUT
+        tr_fifo.push_back(tr);
+    endtask
+
+    task get(output my_transaction s_tr);
+        while (tr_fifo.size() == 0) @(my_vif.i_monitor_cb);
+        s_tr = tr_fifo.pop_front();
+        `uvm_info("Monitor", {"\n", "...", s_tr.sprint()}, UVM_MEDIUM)
+    endtask
+
+endclass
+
+// ----------------------------------------
+class master_agent extends uvm_agent;
+    // ...
+    my_monitor my_moni;
+    uvm_blocking_get_export #(my_transaction) m_a2r_export;
+    // ...
+    function new(string name = "", uvm_component parent);
+        super.new(name, parent);
+        this.m_a2r_export = new("m_a2r_export", this);
+    endfunction
+    // ...
+    virtual function void connect_phase(uvm_phase phase);
+        // ...
+        this.m_a2r_export.connect(my_moni.m2r_port);
+    endfunction
+endclass
+
+// ----------------------------------------
+class my_environment extends uvm_env;
+    // ...
+    master_agent my_agent;
+    my_reference_model ref_model;
+    // ...
+    virtual function void connect_phase(uvm_phase phase);
+        super.connect_phase(phase);
+        ref_model.i_m2r_imp.connect(my_agent.m_a2r_export);
+    endfunction
+endclass
+```
+
+- **fifo模式**
+
+```systemverilog
+class my_reference_model extends uvm_component;
+    // ...
+    uvm_blocking_get_port #(my_transaction, my_reference_model) i_m2r_port;
+    function new(string name = "", uvm_component parent);
+        super.new(name, parent);
+        this.i_m2r_port = new("i_m2r_port", this);
+    endfunction
+    virtual task run_phase(uvm_phase phase);
+        `uvm_info("REF_MODEL_RUN", "...", UVM_MEDIUM)
+        forever begin
+            i_m2r_port.get(item);
+            `uvm_info("REF_REPORT", {"\n", "...", item.sprint()}, UVM_MEDIUM)
+        end
+    endtask
+endclass
+
+// ----------------------------------------
+class my_monitor extends uvm_monitor;
+    // ...
+    uvm_blocking_get_imp #(my_transaction) m2r_imp;
+    my_transaction tr_fifo[$];
+    // ...
+    function new(string name = "", uvm_component parent);
+        super.new(name, parent);
+        this.m2r_imp = new("m2r_imp", this);
+    endfunction
+    // ...
+    virtual task run_phase(uvm_phase phase);
+        my_transaction tr;
+        // ... driver the DUT
+        tr_fifo.push_back(tr);
+    endtask
+
+    task get(output my_transaction s_tr);
+        while (tr_fifo.size() == 0) @(my_vif.i_monitor_cb);
+        s_tr = tr_fifo.pop_front();
+        `uvm_info("Monitor", {"\n", "...", s_tr.sprint()}, UVM_MEDIUM)
+    endtask
+
+endclass
+
+// ----------------------------------------
+class master_agent extends uvm_agent;
+    // ...
+    my_monitor my_moni;
+    uvm_blocking_get_export #(my_transaction) m_a2r_export;
+    // ...
+    function new(string name = "", uvm_component parent);
+        super.new(name, parent);
+        this.m_a2r_export = new("m_a2r_export", this);
+    endfunction
+    // ...
+    virtual function void connect_phase(uvm_phase phase);
+        // ...
+        this.m_a2r_export.connect(my_moni.m2r_port);
+    endfunction
+endclass
+
+// ----------------------------------------
+class my_environment extends uvm_env;
+    // ...
+    master_agent my_agent;
+    my_reference_model ref_model;
+    uvm_tlm_analysis_fifo #(my_transaction) magt2ref_fifo;
+    // ...
+    function new(string name = "my_environment", uvm_component parent);
+        super.new(name, parent);
+        magt2ref_fifo = new("magt2ref", this);
+    endfunction
+    // ...
+    virtual function void connect_phase(uvm_phase phase);
+        super.connect_phase(phase);
+        `uvm_info("ENV", "...", UVM_MEDIUM)
+        my_agent.m_a2r_export.connect(this.magt2ref_fifo.blocking_put_export);
+        `uvm_info("ENV", "...", UVM_MEDIUM)
+        ref_model.i_m2r_port.connect(this.magt2ref_fifo.blocking_get_export);
+    endfunction
+endclass
+```
+
+### “常用UVM TLM analysis port/imp/export“和“analysis port的使用方法”（精简）
+
+如果说“普通 TLM 端口”解决了模块间点对点传输数据的需求，那么 **`analysis port`（分析端口）则是构建自动化验证环境的基石**。
+
+在实际项目中，Monitor抓取到总线上的数据后，通常需要把同一个数据发送给多个组件：
+
+1. **Scoreboard：** 进行数据比对。
+2. **Coverage Collector：** 收集功能覆盖率。
+3. **Logger/Reference Model：** 打印日志或送给参考模型。
+
+普通的 TLM 端口（如 `put/get`）通常是 **点对点** 的，且往往有 **阻塞**行为（比如 FIFO 满了发送者要等）。而 `analysis port` 完美解决了这两个问题：
+
+1. **广播模式（一对多）：** 一个 Monitor 可以通过 `analysis port` 连接任意多个接收端。Monitor 发一次，所有连接的组件都能收到。
+2. **非阻塞：** 它的操作是 `void write()`。Monitor 只是“通知”大家“我抓到数据了”，然后立刻继续工作，不需要等待接收端处理完毕。这符合 Monitor 被动监测的特性（不能因为它发数据慢了就漏抓总线信号）。
+
+> **结论：** 只要你想写 Scoreboard 或者收集覆盖率，就必须用到 Analysis Port。
+
+#### 1. 发送端（通常是 Monitor）
+
+在 Monitor 中，你需要定义一个 `uvm_analysis_port`，并在抓取到数据后调用 `write()`。
+
+```systemverilog
+class my_monitor extends uvm_monitor;
+    `uvm_component_utils(my_monitor)
+
+    // 1. 定义分析端口，参数是你要传输的 transaction 类型
+    uvm_analysis_port #(my_transaction) ap; 
+
+    function new(string name, uvm_component parent);
+        super.new(name, parent);
+        // 2. 实例化端口
+        ap = new("ap", this);
+    endfunction
+
+    task run_phase(uvm_phase phase);
+        my_transaction tr;
+        forever begin
+            // ... 具体的总线抓取逻辑 ...
+
+            // 3. 当收集好一个 transaction (tr) 后，广播出去
+            ap.write(tr); 
+        end
+    endtask
+endclass
+```
+
+==**关注 `write` 函数：** 记住 Monitor 只管 `write`，Scoreboard 必须定义 `function void write(T t)`，这就是核心机制。==
+
+#### 2. 接收端（通常是 Scoreboard 或 Coverage）
+
+接收端通常使用 `uvm_analysis_imp`。UVM 提供了一个专门的基类 `uvm_subscriber`，它已经内置了 `analysis_export`，通常我们建议直接继承它，或者自己定义 `imp`。
+
+**方法 A：直接使用 `imp` (最常用在 Scoreboard)**
+
+```systemverilog
+class my_scoreboard extends uvm_scoreboard;
+    `uvm_component_utils(my_scoreboard)
+
+    // 1. 定义接收端口 imp
+    // 注意两个参数：传的数据类型 (my_transaction) 和 当前组件类型 (my_scoreboard)
+    uvm_analysis_imp #(my_transaction, my_scoreboard) exp_imp; 
+
+    function new(string name, uvm_component parent);
+        super.new(name, parent);
+        exp_imp = new("exp_imp", this);
+    endfunction
+
+    // 2. 必须实现 write 函数！名字不能变，参数必须匹配
+    // Monitor 调用 ap.write(tr) 时，实际上就是在执行这个函数
+    function void write(my_transaction t);
+        // 在这里写你的比对逻辑
+        $display("Scoreboard received: %s", t.convert2string());
+        // 比如： pushing to queue, compare with golden model...
+    endfunction
+endclass
+```
+
+#### 3. 连接（在 Agent 或 Environment 中）
+
+在 `connect_phase` 中，将 Monitor 的“发送口”连到 Scoreboard 的“接收口”。
+
+```systemverilog
+function void connect_phase(uvm_phase phase);
+    // monitor.ap 连接到 scoreboard.imp
+    model_agent.monitor.ap.connect( m_scoreboard.exp_imp );
+endfunction
+```
