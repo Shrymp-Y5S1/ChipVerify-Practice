@@ -14,10 +14,6 @@ class master_agent extends uvm_agent;
   // 构造函数，默认名称为master_agent，接受一个父组件作为参数
   function new(string name = "master_agent", uvm_component parent);
     super.new(name, parent);
-  endfunction
-
-  function new(string name = "", uvm_component parent);
-    super.new(name, parent);
     this.m_a2r_export = new("m_a2r_export", this);
   endfunction
 

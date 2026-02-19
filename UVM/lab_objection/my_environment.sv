@@ -3,14 +3,16 @@ class my_environment extends uvm_env;
   // 注册类，以便UVM的factory机制能够识别和使用它
   `uvm_component_utils(my_environment)
   // 为环境内部的组件：agent声明句柄
-  master_agent       my_agent;
-  env_config         my_env_config;
+  master_agent                            my_agent;
+  env_config                              my_env_config;
 
-  my_reference_model ref_model;
+  my_reference_model                      ref_model;
+  uvm_tlm_analysis_fifo #(my_transaction) magt2ref_fifo;
 
   // 构造函数，默认名称为my_environment，接受一个父组件作为参数
   function new(string name = "my_environment", uvm_component parent);
     super.new(name, parent);
+    magt2ref_fifo = new("magt2ref", this);
   endfunction
 
   // 在build_phase中创建环境内部的组件实例，并将当前环境作为它们的父组件
@@ -42,8 +44,10 @@ class my_environment extends uvm_env;
 
   virtual function void connect_phase(uvm_phase phase);
     super.connect_phase(phase);
-    `uvm_info("ENV", "Connect the monitor and reference model...", UVM_MEDIUM)
-    ref_model.i_m2r_imp.connect(my_agent.m_a2r_export);
+    `uvm_info("ENV", "Connect the agent to fifo...", UVM_MEDIUM)
+    my_agent.m_a2r_export.connect(this.magt2ref_fifo.blocking_put_export);
+    `uvm_info("ENV", "Connect the reference model to fifo...", UVM_MEDIUM)
+    ref_model.i_m2r_port.connect(this.magt2ref_fifo.blocking_get_export);
   endfunction
 
 endclass
