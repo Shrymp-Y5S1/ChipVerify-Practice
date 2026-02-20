@@ -16,6 +16,8 @@
 - SystemVerilog 验证测试平台编写指南（第二版）: [Notes/SV/HVL_SV.md](Notes/SV/HVL_SV.md)
 - UVM 概览 (UVM Overview): [Notes/UVM/UVM_overview1](Notes/UVM/UVM_overview/UVM_overview1.md)、[Notes/UVM/UVM_overview2](Notes/UVM/UVM_overview/UVM_overview2.md)与[Notes/UVM/UVM_overview3](Notes/UVM/UVM_overview/UVM_overview3.md)
 - UVM 实战 (UVM): [Notes/UVM/UVM.md](Notes/UVM/UVM_combat/UVM.md)
+- 工具使用: [Notes/Tools](Notes\Tools) 
+- 基础知识:  [Notes/Fundamentals](Notes\Fundamentals) 
 
 ### UVM (通用验证方法学)
 
