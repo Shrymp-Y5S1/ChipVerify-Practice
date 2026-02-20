@@ -211,17 +211,121 @@
 
 ## UVM advanced sequence（后续补充）
 
-**Virtual Sequence 与 Virtual Sequencer：**
+### Virtual Sequence 与 Virtual Sequencer (全局“总指挥”)
 
-- 这是真正用来协调全局环境的“总指挥”。当系统里有多个不同类型的接口时（比如一边发正常数据，一边发控制指令或异常中断），你需要 Virtual Sequence 来调度底层不同 Agent 的 sequence 按照特定时间轴并发或串行执行。
+> [!note]
+>
+> 在 SystemVerilog 中，`virtual interface` 里的 `virtual` 是一个 **真实的底层语法关键字**；但在 UVM 中，Virtual Sequence 和 Virtual Sequencer 里的 `Virtual` 仅仅是一个 **方法学上的概念命名**，在代码定义时确实不需要（也不能）加 `virtual` 前缀。
 
-**Sequence 的层级嵌套与 `start()` 方法：**
+- **核心定位：** 它是真正用来协调全局验证环境的“总指挥”。
+- **应用场景：** 当系统里有多个不同类型的接口时，比如一边通过 AXI 接口发送正常的数据报文，一边又需要发送控制指令或异常中断。
+- **工作机制：** 你需要 Virtual Sequence 来跨越局部 Agent 的限制，**统一调度底层不同 Agent 的 sequence**，使它们能够按照特定的时间轴进行并发或串行执行。
 
-- 不要依赖隐式的随机，而是要学会在一个大的 Sequence 里面，手动实例化并 `start()` 其他小的 Sequence，像搭积木一样构造复杂的场景（比如针对流水线处理器发送特定依赖关系的指令流）。
+  > [!tip]
+  >
+  > Virtual Sequencer **本身不直接与 Driver 连线发包**，它只负责 **给底层的 Sequencer 派发任务**。
 
-**Sequence 的仲裁机制 (`lock` / `grab`)：**
+```systemverilog
+// 1. 定义 Virtual Sequencer (仅作为存放底层 Sequencer 句柄的容器)
+class my_vsqr extends uvm_sequencer;
+    `uvm_component_utils(my_vsqr)
+    axi_sequencer  axi_sqr;  // AXI 总线序列器句柄
+    intr_sequencer intr_sqr; // 中断序列器句柄
+    // ... new() 函数省略 ...
+endclass
 
-- 学习当多个 sequence 同时想占用驱动器（Driver）时，如何通过设置优先级或强制抢占（grab）来模拟突发事件。
+// 2. 定义 Virtual Sequence
+class global_sanity_vseq extends uvm_sequence;
+    `uvm_object_utils(global_sanity_vseq)
+    
+    // 声明底层的具体 Sequence
+    axi_burst_seq axi_seq;
+    intr_err_seq  intr_seq;
+
+    // 声明一个 Virtual Sequencer 的句柄，用于类型转换
+    my_vsqr vsqr; 
+
+    virtual task body();
+        // 将通用的 m_sequencer 转换为具体的 Virtual Sequencer
+        if (!$cast(vsqr, m_sequencer)) begin
+            `uvm_fatal("VSEQ", "Cast to virtual sequencer failed!")
+        end
+
+        axi_seq  = axi_burst_seq::type_id::create("axi_seq");
+        intr_seq = intr_err_seq::type_id::create("intr_seq");
+
+        // 3. 使用 fork...join 并发调度不同接口的激励
+        fork
+            // AXI 序列挂载到 AXI sequencer 上
+            axi_seq.start(vsqr.axi_sqr, this); 
+            begin
+                #1000ns; // 等待一段时间后触发中断
+                // 中断序列挂载到中断 sequencer 上
+                intr_seq.start(vsqr.intr_sqr, this); 
+            end
+        join
+    endtask
+endclass
+```
+
+### Sequence 的层级嵌套与 `start()` 方法 (场景构造器)
+
+- **核心逻辑：** 在构建复杂的测试用例时，不要依赖隐式的、不可控的随机机制。
+- **工作机制：** 学会在一个大的 Sequence 内部，手动实例化并调用 `start()` 方法来运行其他微小的、功能单一的 Sequence。
+- **应用场景：** 像搭积木一样构造复杂的场景。比如在验证流水线处理器时，可以利用层级嵌套精准地构造并发送具有特定资源依赖关系的指令流，以此来测试流水线的停顿（Stall）或前递（Forwarding）机制。
+
+```systemverilog
+class riscv_complex_test_seq extends uvm_sequence;
+    `uvm_object_utils(riscv_complex_test_seq)
+
+    // 1. 声明底层的基础 Sequence 句柄
+    riscv_alu_seq  alu_seq;
+    riscv_mem_seq  mem_seq;
+
+    virtual task body();
+        // 2. 实例化并启动 ALU 测试序列
+        alu_seq = riscv_alu_seq::type_id::create("alu_seq");
+        // start() 的参数指明它挂载到哪个 Sequencer 上运行
+        alu_seq.start(m_sequencer, this); 
+
+        // 3. 实例化并启动 Memory 访存序列
+        mem_seq = riscv_mem_seq::type_id::create("mem_seq");
+        mem_seq.start(m_sequencer, this);
+    endtask
+endclass
+```
+
+### Sequence 的仲裁机制 `lock` / `grab` (资源与路权管理)
+
+- **核心逻辑：** 学习和处理当多个 sequence 同时想占用同一个 Driver 时的资源冲突问题。
+- **工作机制：** **仲裁 (Arbitration)** ：通过为不同的 Sequence 设置优先级，让底层 Sequencer 根据优先级高低来决定先发送谁的 Item。
+  - **抢占 (`lock` / `grab`)：** 通过强制抢占机制（grab）直接打断正在执行的低优先级 Sequence。
+- **应用场景：** 这种机制非常适合用来模拟硬件系统中的突发事件（例如总线报错、最高优先级的中断响应等）。
+
+```systemverilog
+class emergency_reset_seq extends uvm_sequence;
+    `uvm_object_utils(emergency_reset_seq)
+    
+    axi_transaction rst_tr;
+
+    virtual task body();
+        rst_tr = axi_transaction::type_id::create("rst_tr");
+        
+        // 1. 强制抢占 Sequencer 的控制权 (无视其他正在排队的序列)
+        m_sequencer.grab(this); 
+        
+        // 2. 发送紧急事务
+        start_item(rst_tr);
+        rst_tr.randomize() with { type == RESET; };
+        finish_item(rst_tr);
+        
+        // 3. 必须释放控制权，否则系统死锁
+        m_sequencer.ungrab(this); 
+    endtask
+endclass
+```
+
+
 
 ## UVM RAL
 
@@ -713,26 +817,213 @@ endclass
   | `UVM_CVR_FIELD_VALS` | 统计域的值                           |
   | `UVM_CVR_ALL`        | 统计所有的覆盖率                     |
 
+## 覆盖率驱动验证 (CDV) 与 SVA（后续补充）
 
----
+### 覆盖率驱动验证 (CDV) 与功能覆盖率
 
-> 你的笔记已经构建了基础环境，但要应对真实复杂的数字 IC 验证项目（如完整的微处理器或复杂总线节点），以下理论是必须要补齐的：
+**理论核心：**
+
+CDV（Coverage-Driven Verification）是一种闭环的验证思想：**制定验证计划 -> 随机发包跑测试 -> 收集覆盖率 -> 分析盲区 -> 修改约束再跑 -> 直到覆盖率达标。**
+
+覆盖率主要分两种：
+
+1. **代码覆盖率（Code Coverage）：** 仿真器自动收集的（比如行覆盖、翻转覆盖、状态机覆盖）。它只能证明代码被执行了，不能证明功能是对的。
+2. **功能覆盖率（Functional Coverage）：** 验证工程师 **手写** 的。用来证明“特定的业务场景”是否被测试到了。
+
+**实战用法（在 UVM 中收集功能覆盖率）：**
+
+通常会单独写一个继承自 `uvm_subscriber` 的组件（类似于 Scoreboard，通过 Analysis Port 接收 Monitor 抓到的数据），专门负责采样覆盖率。
+
+```systemverilog
+`include "uvm_macros.svh"
+import uvm_pkg::*;
+
+// 定义一个专门收集 AXI 事务覆盖率的组件
+class axi_cov_collector extends uvm_subscriber #(axi_transaction);
+    `uvm_component_utils(axi_cov_collector)
+
+    // 声明一个事务句柄，用于在 covergroup 中被引用
+    axi_transaction tr;
+
+    // 1. 定义 Covergroup (覆盖率组)
+    covergroup cg_axi_burst;
+        // 覆盖点 1：检查 burst 类型是否都被测到
+        cp_burst: coverpoint tr.burst {
+            bins fixed = {2'b00};
+            bins incr  = {2'b01};
+            bins wrap  = {2'b10};
+        }
+        
+        // 覆盖点 2：检查 burst 长度
+        cp_len: coverpoint tr.len {
+            bins short_burst = {[0:3]};
+            bins long_burst  = {[4:15]};
+            // 忽略非法的过长突发（假设当前不支持）
+            ignore_bins invalid_len = {[16:255]}; 
+        }
+
+        // 交叉覆盖：只有当所有 burst 类型都以各种长度发送过，才算 100% 覆盖
+        cross_burst_len: cross cp_burst, cp_len;
+    endgroup
+
+    function new(string name, uvm_component parent);
+        super.new(name, parent);
+        // 2. 必须在 new 函数中实例化 covergroup
+        cg_axi_burst = new();
+    endfunction
+
+    // 3. 实现 write 函数（通过 Analysis Port 自动被 Monitor 调用）
+    virtual function void write(axi_transaction t);
+        this.tr = t;
+        // 4. 每次收到新的 transaction，调用 sample() 进行采样
+        cg_axi_burst.sample();
+    endfunction
+endclass
+```
+
+### SystemVerilog Assertion (SVA) 与 UVM 的结合
+
+**理论核心：**
+
+- **Scoreboard 检查“数据”：** 算出来的结果对不对。
+- **SVA 检查“时序”：** 信号跳变的顺序对不对。
+
+在验证具有 outstanding、乱序特性的总线时，时序关系错综复杂。如果用传统的 Verilog 写状态机去检查握手协议，代码会极其臃肿。SVA 提供了一种声明式的语法，专门用来描述跨越多个时钟周期的复杂时序逻辑。
+
+**实战用法（将 SVA 嵌入 Interface）：**
+
+SVA 必须能够 **直接访问物理信号和时钟**，因此在 UVM 架构中，**SVA 几乎总是直接写在物理 `interface` 内部**，而不是写在 UVM 的 class 里。你可以利用 `import uvm_pkg::*;` 让 SVA 报错时直接调用 UVM 的信息服务机制。
+
+```systemverilog
+interface axi_if(input clk, input rst_n);
+    import uvm_pkg::*; // 引入 UVM 宏，以便使用 `uvm_error
+
+    logic awvalid;
+    logic awready;
+    logic [31:0] awaddr;
+
+    // ---------------------------------------------------------
+    // SVA 规则定义区
+    // ---------------------------------------------------------
+
+    // 规则 1：经典的握手保持原则
+    // 如果 AWVALID 拉高，且 AWREADY 没拉高，那么在下一个时钟周期，AWVALID 必须保持为高
+    property p_awvalid_hold;
+        @(posedge clk) disable iff(!rst_n) // 指定时钟和复位条件
+        (awvalid && !awready) |=> awvalid;  // |=> 表示“在下一个时钟周期”
+    endproperty
+    // 规则 2：AWVALID 保持期间，地址不允许改变
+    property p_awaddr_stable;
+        @(posedge clk) disable iff(!rst_n)
+        (awvalid && !awready) |=> $stable(awaddr); // $stable 检查值是否未改变
+    endproperty
+
+    // ---------------------------------------------------------
+    // SVA 断言执行区 (assert)
+    // ---------------------------------------------------------
+    
+    // 断言属性，并在失败时通过 UVM 机制报错
+    assert_awvalid_hold: assert property(p_awvalid_hold)
+        else `uvm_error("SVA_ERR", "Protocol violation: AWVALID dropped before AWREADY!")
+    assert_awaddr_stable: assert property(p_awaddr_stable)
+        else `uvm_error("SVA_ERR", "Protocol violation: AWADDR changed while waiting for AWREADY!")
+
+endinterface
+```
+
+## Reference Model 与 DPI-C（C/C++ 模型接入）
+
+在面对复杂的算法 IP 或多级流水线的微处理器时，工业界的标准做法是：**硬件 RTL 由数字前端团队用 Verilog 写，而“标准答案”则由架构团队用 C/C++ 写（也就是指令集模拟器 ISS，例如 Spike 或 Whisper）**。验证工程师的任务就是用 **DPI-C** 把这两者缝合起来。
+
+> [!tip]
 >
-> **1. Virtual Sequence 的代码落地**
+> 引入 DPI-C 后，你的 UVM 环境就变成了：**SystemVerilog 负责在前面跟 RTL 拼时序、发激励、抓波形，而 C/C++ 在后面算核心算法。** 两者分工明确，是现代高端芯片验证的唯一解。
 >
-> - **你的笔记：** 在 `UVM_overview3.md` 中以文字形式记录了 Virtual Sequence 是“总指挥”的概念。
-> - **补充方向：** 理论上你需要知道，Virtual Sequence 本身是不产生数据包的，它里面包含的是各个底层 Agent 的 Sequencer 句柄（即 Virtual Sequencer）。你需要学习如何在一个大的 Virtual Sequence 的 `body()` 任务里，去分发、嵌套、协调底层的 Sequence。
->
-> **2. Reference Model 与 DPI-C（C/C++ 模型接入）**
->
-> - **你的笔记：** 记录了使用 SystemVerilog 编写 Reference Model 并通过 TLM 通信的逻辑。
-> - **补充方向：** 在验证复杂的算法模块或 RISC-V 等处理器架构时，参考模型通常是 C/C++ 写的（比如指令集模拟器 ISS）。你需要补充 **DPI-C (Direct Programming Interface)** 的知识，学习如何让 UVM 环境（SystemVerilog）调用 C 语言的函数，实现联合仿真。
->
-> **3. 覆盖率驱动验证 (CDV) 与 SVA**
->
-> - **补充方向：** UVM 是一个平台，验证的最终验收标准是“覆盖率”。你需要补充如何在 UVM 中收集功能覆盖率（`covergroup`, `coverpoint`），以及如何将 SVA（SystemVerilog Assertions，断言）与 UVM 环境结合，去监控复杂的时序协议（比如 AXI4 的握手规则）。
+> 一旦涉及到 C 代码的加入，你原先使用 VCS 编译 `.sv` 文件的命令就需要加上 **编译 `.c` 文件** 的环节。
+
+### DPI-C 理论核心总结
+
+**DPI-C (Direct Programming Interface)** 是 SystemVerilog 提供的一种标准接口机制，让 SV 和 C/C++ 能够像在同一个语言里一样互相调用函数。
+
+1. **核心方向：`import` 与 `export`**
+   - **`import` (SV 调用 C)：** 最常用的场景。UVM 环境抓到了总线上的激励，把它传给 C 模型算出一个期望值，然后再拿回来给 Scoreboard 比对。
+   - **`export` (C 调用 SV)：** 较少用。通常是 C 模型执行到某个特殊状态时，反向调用 SV 去触发一个硬件中断。
+2. **数据类型映射（避坑指南）**
+   - C 和 SV 的数据类型在底层内存排布上并不完全一致。
+   - **工业界铁律：** 尽量只在 DPI 接口上传递最基本的数据类型！用 SV 的 `int` 对应 C 的 `int`，SV 的 `byte` 对应 C 的 `char`。
+   - **坚决不要：** 试图直接在 DPI 接口上传递复杂的 SV `class` 或带时间概念的逻辑类型（四值逻辑 `logic` 传到 C 里处理起来非常繁琐，通常在 SV 侧强制转为 `bit` 或 `int` 再传）。
+
+### 如何用 DPI-C 接入 C 语言 ISS
+
+假设你现在需要给处理器写一个 Reference Model。UVM 已经通过 Monitor 抓到了输入的一条 32 位机器码（Instruction），现在我们要把它扔给 C 语言写的 ISS 去执行，并获取它期望写入的目标寄存器索引（reg_idx）和写入的数据（reg_data）。
+
+#### C 语言侧：准备好“标准答案生成器” (iss_model.c)
+
+用 C 写好业务逻辑，注意函数不需要特殊的修饰符，正常写即可。如果是指针参数，在 SV 侧会被映射为 `output` 或 `inout`。
+
+```c
+#include "svdpi.h" // 包含 DPI 标准头文件
+
+// C 语言侧的 ISS 步进函数 (接收指令，输出期望的寄存器状态)
+void c_iss_step(int inst, int* reg_idx, int* reg_data) {
+    // 假设这里是极其复杂的 C++ 解码和执行逻辑...
+    // 简单模拟：假设解码出需要将数据 0x12345678 写回 x1 寄存器
+    
+    *reg_idx = 1;               // 对应 RISC-V 的 x1 寄存器
+    *reg_data = 0x12345678;     // 期望写回的数据
+}
+```
+
+#### SystemVerilog 侧：导入 C 函数并在 UVM 中调用 (riscv_ref_model.sv)
+
+在 UVM 的 Reference Model 中，使用 `import` 声明这个 C 函数，然后就可以像调用 SV 原生函数一样去调用它。
+
+```systemverilog
+`include "uvm_macros.svh"
+import uvm_pkg::*;
+
+// 1. 核心语法：导入 C 函数
+// input 对应 C 的按值传递，output 对应 C 的指针传递
+import "DPI-C" context function void c_iss_step(input int inst, output int reg_idx, output int reg_data);
+
+class riscv_ref_model extends uvm_component;
+    `uvm_component_utils(riscv_ref_model)
+
+    // 定义接收 Monitor 数据的端口，以及发送给 Scoreboard 的端口
+    uvm_blocking_get_port #(riscv_transaction) m2r_port;
+    uvm_analysis_port #(riscv_transaction)     ap;
+
+    function new(string name, uvm_component parent);
+        super.new(name, parent);
+        m2r_port = new("m2r_port", this);
+        ap = new("ap", this);
+    endfunction
+
+    virtual task run_phase(uvm_phase phase);
+        riscv_transaction tr_in, tr_exp;
+        int expected_idx, expected_data;
+
+        forever begin
+            // 2. 从 Monitor 获取当前周期的输入指令
+            m2r_port.get(tr_in);
+            
+            // 3. 【DPI-C 魔法时刻】调用 C 模型！
+            // 把 SV 抓到的机器码 tr_in.inst 传给 C 函数，C 函数把结果填入后面两个变量
+            c_iss_step(tr_in.inst, expected_idx, expected_data);
+            
+            // 4. 将 C 模型算出的期望值，打包成 Transaction 准备送给 Scoreboard
+            tr_exp = riscv_transaction::type_id::create("tr_exp");
+            tr_exp.reg_idx  = expected_idx;
+            tr_exp.reg_data = expected_data;
+            
+            // 5. 通过 Analysis Port 发送给 Scoreboard 进行比对
+            ap.write(tr_exp);
+        end
+    endtask
+endclass
+```
 
 ## UVM callback（后续补充）
 
-> **实际应用场景：** * 一般在开发通用的验证 IP (VIP) 时用得最多。如果你只是* *使用* *环境，可能不常去定义 Callback；但如果你要* *维护或二次开发**一个大型的成熟平台，理解 Callback 机制能让你在不破坏底层架构的前提下“见缝插针”地注入错误（Error Injection）或修改数据。建议初期先理解概念，知道怎么调即可。
+> **实际应用场景：** 一般在开发通用的验证 IP (VIP) 时用得最多。如果你只是 **使用** 环境，可能不常去定义 Callback；但如果你要 **维护或二次开发**一个大型的成熟平台，理解 Callback 机制能让你在不破坏底层架构的前提下“见缝插针”地注入错误（Error Injection）或修改数据。建议初期先理解概念，知道怎么调即可。
 
