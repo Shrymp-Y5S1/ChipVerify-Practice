@@ -4,6 +4,11 @@ TEST      ?= tb_axi_mst
 UVM_TEST  ?= axi_base_test
 # 随机数种子，可以通过 make SEED=12345 进行覆盖
 SEED      := $(shell date +%s)
+UVM_TIMEOUT ?= 2000000000
+UVM_MAX_QUIT_COUNT ?= 50
+TB_HS_TIMEOUT ?= 100000
+DRV_REQ_TIMEOUT ?= 100000
+SIM_PLUSARGS ?=
 FLIST     ?= ./flist/$(TEST).f
 TOP       ?= $(TEST)
 
@@ -61,6 +66,11 @@ sim:
 	       +fsdb+name=$(FSDB_FILE) \
 	       +ntb_random_seed=$(SEED) \
 	       +UVM_TESTNAME=$(UVM_TEST) \
+	       +UVM_TIMEOUT=$(UVM_TIMEOUT),NO \
+	       +UVM_MAX_QUIT_COUNT=$(UVM_MAX_QUIT_COUNT),NO \
+	       +TB_HS_TIMEOUT=$(TB_HS_TIMEOUT) \
+	       +DRV_REQ_TIMEOUT=$(DRV_REQ_TIMEOUT) \
+	       $(SIM_PLUSARGS) \
 	       $(CM_OPTS) -cm_dir $(abspath $(CM_DIR)) -cm_name $(CM_NAME)
 
 # 打开波形 (Verdi)
@@ -99,7 +109,7 @@ check:
 		echo ">>>> RESULT: [FATAL] Log file not found! Simulation failed to start? <<<<"; \
 		exit 1; \
 	fi; \
-	@errors=$$(grep -E "UVM_ERROR|UVM_FATAL|Error:|Offending" $(CURRENT_LOG) | grep -v ": 0" | wc -l); \
+	@errors=$$(grep -E "UVM_ERROR\s*:\s*[1-9][0-9]*|UVM_FATAL\s*:\s*[1-9][0-9]*|Error:|Offending" $(CURRENT_LOG) | wc -l); \
 	if [ $$errors -gt 0 ]; then \
 		echo ">>>> RESULT: [FAILED] (Found $$errors Errors/Fatals/Assertion Failures) <<<<"; \
 		exit 1; \
