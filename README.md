@@ -14,10 +14,14 @@
 
 - AXI4 Protocol: [Notes/AXI/AXI4.md](Notes/AXI/AXI4.md)
 - SystemVerilog 验证测试平台编写指南（第二版）: [Notes/SV/HVL_SV.md](Notes/SV/HVL_SV.md)
-- UVM 概览 (UVM Overview): [Notes/UVM/UVM_overview1](Notes/UVM/UVM_overview/UVM_overview1.md)、[Notes/UVM/UVM_overview2](Notes/UVM/UVM_overview/UVM_overview2.md)与[Notes/UVM/UVM_overview3](Notes/UVM/UVM_overview/UVM_overview3.md)
+- UVM 概览 (UVM Overview): [Notes/UVM/UVM_overview1](Notes/UVM/UVM_overview/UVM_overview1.md)、[Notes/UVM/UVM_overview2](Notes/UVM/UVM_overview/UVM_overview2.md) 与 [Notes/UVM/UVM_overview3](Notes/UVM/UVM_overview/UVM_overview3.md)
 - UVM 实战 (UVM): [Notes/UVM/UVM.md](Notes/UVM/UVM_combat/UVM.md)
-- 工具使用: [Notes/Tools](Notes\Tools) 
-- 基础知识:  [Notes/Fundamentals](Notes\Fundamentals) 
+- 工具使用: [Notes/Tools](Notes\Tools)
+- 基础知识:  [Notes/Fundamentals](Notes\Fundamentals)
+
+### Paper (文献阅读)
+
+- The Rocket Chip Generator (2016): [Rocket_Chip](Paper\Rocket_Chip\rocket_chip.md)
 
 ### UVM (通用验证方法学)
 
@@ -25,7 +29,7 @@
 
 ### Combinational (组合逻辑)
 
-- **4x1 Multiplexer** (4选1多路选择器): [Combinational/4x1_Mux](Combinational/4x1_Mux)
+- **4x1 Multiplexer** (4 选 1 多路选择器): [Combinational/4x1_Mux](Combinational/4x1_Mux)
 - **Full Adder** (全加器): [Combinational/Full_Adder](Combinational/Full_Adder)
 - **Priority Encoder** (优先编码器): [Combinational/Priority_Encoder](Combinational/Priority_Encoder)
 
